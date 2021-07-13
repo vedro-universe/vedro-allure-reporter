@@ -81,6 +81,7 @@ class AllureReporter(Reporter):
         test_result = TestResult()
         test_result.uuid = uuid4()
         test_result.name = scenario_result.scenario_subject
+        test_result.historyId = scenario_result.scenario.unique_id
         path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
         test_result.labels.append(
             Label(name="package", value=path.replace("/", "."))
