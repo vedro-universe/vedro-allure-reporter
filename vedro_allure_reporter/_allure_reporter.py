@@ -1,10 +1,20 @@
+import json
 import os
-from typing import Any, Union, cast
+from typing import Any, Dict, Union, cast
 
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
 from allure_commons.logger import AllureFileLogger
-from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
+from allure_commons.model2 import (
+    ATTACHMENT_PATTERN,
+    Attachment,
+    Label,
+    Status,
+    StatusDetails,
+    TestResult,
+    TestStepResult,
+)
+from allure_commons.types import AttachmentType
 from allure_commons.utils import format_exception, format_traceback, now, uuid4
 from vedro._core import Dispatcher, ScenarioResult, StepResult
 from vedro.events import (
@@ -32,7 +42,8 @@ class AllureReporter(Reporter):
         self._logger: Union[AllureFileLogger, None] = None
         self._test_result: Union[TestResult, None] = None
         self._test_step_result: Union[TestStepResult, None] = None
-        self._report_dir = "reports"
+        self._report_dir = None
+        self._attach_scope = False
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
@@ -48,11 +59,17 @@ class AllureReporter(Reporter):
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
         event.arg_parser.add_argument("--allure-report-dir",
-                                      default=self._report_dir,
-                                      help="")
+                                      required=True,
+                                      help="Set directory for Allure reports")
+        event.arg_parser.add_argument("--allure-attach-scope",
+                                      action='store_true',
+                                      default=self._attach_scope,
+                                      help="Attach scope to Allure report")
 
     def on_arg_parsed(self, event: ArgParsedEvent) -> None:
         self._report_dir = event.args.allure_report_dir
+        self._attach_scope = event.args.allure_attach_scope
+
         self._plugin_manager.register(self)
         self._logger = self._logger_factory(self._report_dir, clean=True)
         self._plugin_manager.register(self._logger)
@@ -70,17 +87,39 @@ class AllureReporter(Reporter):
         )
         return test_result
 
+    def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
+        file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=type_.extension)
+        return Attachment(name=name, source=file_name, type=type_.mime_type)
+
+    def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
+        res = ""
+        for key, val in scope.items():
+            try:
+                val_repr = json.dumps(val, ensure_ascii=False, indent=4)
+            except:  # noqa: E722
+                val_repr = repr(val)
+            res += f"{indent * ' '}{key}:\n{val_repr}\n\n"
+        return res
+
     def _stop_scenario(self, test_result: TestResult,
                        scenario_result: ScenarioResult, status: Status) -> None:
         test_result.status = status
         test_result.start = self._to_seconds(scenario_result.started_at or now())
         test_result.stop = self._to_seconds(scenario_result.ended_at or now())
+
+        if self._attach_scope:
+            body = self._format_scope(scenario_result.scope or {})
+            attachment = self._create_attachment("Scope", AttachmentType.TEXT)
+            test_result.attachments.append(attachment)
+
+            self._plugin_manager.hook.report_attached_data(body=body, file_name=attachment.source)
+
         self._plugin_manager.hook.report_result(result=test_result)
 
     def _start_step(self, test_result: TestResult, step_result: StepResult) -> TestStepResult:
         test_step_result = TestStepResult()
         test_step_result.uuid = uuid4()
-        test_step_result.name = step_result.step_name
+        test_step_result.name = step_result.step_name.replace("_", " ")
         test_result.steps.append(test_step_result)
         return test_step_result
 
