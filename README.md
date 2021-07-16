@@ -20,5 +20,5 @@ vedro.run(plugins=[AllureReporter()])
 ```
 
 ```shell
-$ python3 bootstrap.py -r allure --allure-report-dir "./reports"
+$ python3 bootstrap.py -r allure --allure-report-dir "./allure_reports"
 ```

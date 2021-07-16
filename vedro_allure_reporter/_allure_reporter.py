@@ -14,7 +14,7 @@ from allure_commons.model2 import (
     TestResult,
     TestStepResult,
 )
-from allure_commons.types import AttachmentType
+from allure_commons.types import AttachmentType, LabelType
 from allure_commons.utils import format_exception, format_traceback, now, uuid4
 from vedro._core import Dispatcher, ScenarioResult, StepResult
 from vedro.events import (
@@ -82,10 +82,15 @@ class AllureReporter(Reporter):
         test_result.uuid = uuid4()
         test_result.name = scenario_result.scenario_subject
         test_result.historyId = scenario_result.scenario.unique_id
+        test_result.testCaseId = scenario_result.scenario.unique_id
+
         path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
-        test_result.labels.append(
-            Label(name="package", value=path.replace("/", "."))
-        )
+        package = path.replace("/", ".")
+        test_result.labels.extend([
+            Label(name="package", value=package),
+            Label(name=LabelType.SUITE, value="scenarios"),
+        ])
+
         return test_result
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
