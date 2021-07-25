@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any, Dict, Union, cast
 
+import allure_commons.utils as utils
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
 from allure_commons.logger import AllureFileLogger
@@ -15,8 +16,8 @@ from allure_commons.model2 import (
     TestStepResult,
 )
 from allure_commons.types import AttachmentType, LabelType
-from allure_commons.utils import format_exception, format_traceback, now, uuid4
-from vedro._core import Dispatcher, ScenarioResult, StepResult
+from allure_commons.utils import format_exception, format_traceback
+from vedro.core import Dispatcher, ScenarioResult, StepResult
 from vedro.events import (
     ArgParsedEvent,
     ArgParseEvent,
@@ -79,7 +80,7 @@ class AllureReporter(Reporter):
 
     def _start_scenario(self, scenario_result: ScenarioResult) -> TestResult:
         test_result = TestResult()
-        test_result.uuid = uuid4()
+        test_result.uuid = utils.uuid4()
         test_result.name = scenario_result.scenario_subject
         test_result.historyId = scenario_result.scenario.unique_id
         test_result.testCaseId = scenario_result.scenario.unique_id
@@ -94,7 +95,7 @@ class AllureReporter(Reporter):
         return test_result
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
-        file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=type_.extension)
+        file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=type_.extension)
         return Attachment(name=name, source=file_name, type=type_.mime_type)
 
     def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
@@ -110,8 +111,8 @@ class AllureReporter(Reporter):
     def _stop_scenario(self, test_result: TestResult,
                        scenario_result: ScenarioResult, status: Status) -> None:
         test_result.status = status
-        test_result.start = self._to_seconds(scenario_result.started_at or now())
-        test_result.stop = self._to_seconds(scenario_result.ended_at or now())
+        test_result.start = self._to_seconds(scenario_result.started_at or utils.now())
+        test_result.stop = self._to_seconds(scenario_result.ended_at or utils.now())
 
         if self._attach_scope:
             body = self._format_scope(scenario_result.scope or {})
@@ -124,7 +125,7 @@ class AllureReporter(Reporter):
 
     def _start_step(self, test_result: TestResult, step_result: StepResult) -> TestStepResult:
         test_step_result = TestStepResult()
-        test_step_result.uuid = uuid4()
+        test_step_result.uuid = utils.uuid4()
         test_step_result.name = step_result.step_name.replace("_", " ")
         test_result.steps.append(test_step_result)
         return test_step_result
@@ -132,8 +133,8 @@ class AllureReporter(Reporter):
     def _stop_step(self, test_step_result: TestStepResult,
                    step_result: StepResult, status: Status) -> None:
         test_step_result.status = status
-        test_step_result.start = self._to_seconds(step_result.started_at or now())
-        test_step_result.stop = self._to_seconds(step_result.ended_at or now())
+        test_step_result.start = self._to_seconds(step_result.started_at or utils.now())
+        test_step_result.stop = self._to_seconds(step_result.ended_at or utils.now())
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._test_result = self._start_scenario(event.scenario_result)
