@@ -1,5 +1,6 @@
 from argparse import Namespace
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -7,9 +8,10 @@ from uuid import uuid4
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from vedro.core import Dispatcher, ScenarioResult, StepResult
+from vedro.plugins.director.rich.test_utils import make_path, make_random_name, make_vscenario
 
 __all__ = ("plugin_manager_", "logger_", "logger_factory_", "dispatcher",
-           "make_parsed_args", "logger", "patch_uuid", "make_test_case",)
+           "make_parsed_args", "logger", "patch_uuid", "make_test_case", "make_scenario_result",)
 
 
 @pytest.fixture()
@@ -49,6 +51,16 @@ def patch_uuid(uuid: Optional[str] = None):
         yield uuid
 
 
+def make_scenario_result(path: Optional[Path] = None,
+                         subject: Optional[str] = None) -> ScenarioResult:
+    if path is None:
+        path = make_path("namespace")
+    if subject is None:
+        subject = make_random_name()
+    vscenario = make_vscenario(path=path, subject=subject)
+    return ScenarioResult(vscenario)
+
+
 def make_test_case(uuid: str, scenario_result: ScenarioResult,
                    steps: Optional[List[StepResult]] = None) -> Dict[str, Any]:
     test_case = {
@@ -62,6 +74,7 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
         "labels": [
             {
                 "name": "package",
+                "value": "scenarios.namespace"
             },
             {
                 "name": "suite",

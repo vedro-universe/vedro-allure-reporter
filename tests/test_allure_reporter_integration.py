@@ -12,11 +12,18 @@ from vedro.events import (
     StepPassedEvent,
     StepRunEvent,
 )
-from vedro.plugins.director.rich.test_utils import make_scenario_result, make_step_result
+from vedro.plugins.director.rich.test_utils import make_step_result
 
 from vedro_allure_reporter import AllureReporter
 
-from ._utils import dispatcher, logger, make_parsed_args, make_test_case, patch_uuid
+from ._utils import (
+    dispatcher,
+    logger,
+    make_parsed_args,
+    make_scenario_result,
+    make_test_case,
+    patch_uuid,
+)
 
 __all__ = ("dispatcher", "logger",)
 

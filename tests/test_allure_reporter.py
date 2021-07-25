@@ -11,11 +11,17 @@ from vedro.events import (
     ScenarioSkippedEvent,
 )
 from vedro.plugins.director import Reporter
-from vedro.plugins.director.rich.test_utils import make_scenario_result
 
 from vedro_allure_reporter import AllureReporter
 
-from ._utils import dispatcher, logger_, logger_factory_, make_parsed_args, plugin_manager_
+from ._utils import (
+    dispatcher,
+    logger_,
+    logger_factory_,
+    make_parsed_args,
+    make_scenario_result,
+    plugin_manager_,
+)
 
 __all__ = ("dispatcher", "plugin_manager_", "logger_", "logger_factory_",)
 
