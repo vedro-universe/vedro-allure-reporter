@@ -1,2 +1,2 @@
-vedro>=1.2.4,<1.3
+vedro>=1.2.4,<1.4
 allure-python-commons>=2.9,<2.10
