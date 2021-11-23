@@ -34,3 +34,17 @@ $ python3 bootstrap.py -r allure --allure-report-dir ./allure_reports
 ```shell
 $ allure serve ./allure_reports
 ```
+
+### Upload report to [Allure TestOps](https://docs.qameta.io/allure-testops/)
+
+```shell
+$ export ALLURE_ENDPOINT=<endpoint>
+$ export ALLURE_PROJECT_ID=<project_id>
+$ export ALLURE_TOKEN=<token>
+
+$ export LAUNCH_ID=`allurectl launch create --launch-name test --no-header --format ID | tail -n1`
+$ allurectl upload ./allure_reports --launch-id $LAUNCH_ID
+$ allurectl launch close $LAUNCH_ID
+```
+
+Documentation — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
