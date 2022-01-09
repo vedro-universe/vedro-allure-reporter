@@ -81,7 +81,7 @@ class AllureReporter(Reporter):
     def _start_scenario(self, scenario_result: ScenarioResult) -> TestResult:
         test_result = TestResult()
         test_result.uuid = utils.uuid4()
-        test_result.name = scenario_result.scenario_subject
+        test_result.name = scenario_result.scenario.subject
         test_result.historyId = scenario_result.scenario.unique_id
         test_result.testCaseId = scenario_result.scenario.unique_id
 

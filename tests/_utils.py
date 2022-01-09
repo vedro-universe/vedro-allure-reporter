@@ -65,7 +65,7 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
                    steps: Optional[List[StepResult]] = None) -> Dict[str, Any]:
     test_case = {
         "uuid": uuid,
-        "name": scenario_result.scenario_subject,
+        "name": scenario_result.scenario.subject,
         "status": scenario_result.status.value.lower(),
         "start": int(scenario_result.started_at * 1000),
         "stop": int(scenario_result.ended_at * 1000),
