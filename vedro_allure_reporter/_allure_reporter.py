@@ -59,13 +59,15 @@ class AllureReporter(Reporter):
                   .listen(CleanupEvent, self.on_cleanup)
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
-        event.arg_parser.add_argument("--allure-report-dir",
-                                      required=True,
-                                      help="Set directory for Allure reports")
-        event.arg_parser.add_argument("--allure-attach-scope",
-                                      action='store_true',
-                                      default=self._attach_scope,
-                                      help="Attach scope to Allure report")
+        group = event.arg_parser.add_argument_group("Allure Reporter")
+
+        group.add_argument("--allure-report-dir",
+                           required=True,
+                           help="Set directory for Allure reports")
+        group.add_argument("--allure-attach-scope",
+                           action='store_true',
+                           default=self._attach_scope,
+                           help="Attach scope to Allure report")
 
     def on_arg_parsed(self, event: ArgParsedEvent) -> None:
         self._report_dir = event.args.allure_report_dir
