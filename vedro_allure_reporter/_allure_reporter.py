@@ -45,7 +45,7 @@ class AllureReporter(Reporter):
         self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = None
         self._attach_scope = False
-        self.project_name = 'unknown'
+        self.project_name = None
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
@@ -90,13 +90,18 @@ class AllureReporter(Reporter):
 
         path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
         package = path.replace("/", ".")
-        test_result.labels.extend([
-            Label(name="package", value=package),
-            Label(name=LabelType.SUITE, value="scenarios"),
-            Label(name='project_name', value=self.project_name),
-        ])
+        test_result.labels.extend(self._create_labels())
 
         return test_result
+
+    def _create_labels(self):
+        labels = [
+            Label(name="package", value=package),
+            Label(name=LabelType.SUITE, value="scenarios"),
+        ]
+        if self.project_name:
+            labels.append(Label(name='project_name', value=self.project_name))
+        return labels
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=type_.extension)
