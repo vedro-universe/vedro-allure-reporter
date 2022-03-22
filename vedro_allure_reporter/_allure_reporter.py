@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, Union, cast, List
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -87,18 +87,17 @@ class AllureReporter(Reporter):
         test_result.name = scenario_result.scenario.subject
         test_result.historyId = scenario_result.scenario.unique_id
         test_result.testCaseId = scenario_result.scenario.unique_id
-
-        path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
-        package = path.replace("/", ".")
-        test_result.labels.extend(self._create_labels())
+        test_result.labels.extend(self._create_labels(scenario_result))
 
         return test_result
 
-    def _create_labels(self):
-        labels = [
-            Label(name="package", value=package),
-            Label(name=LabelType.SUITE, value="scenarios"),
-        ]
+    def _create_labels(self, scenario_result: ScenarioResult) -> List[Label]:
+        labels = [Label(name=LabelType.SUITE, value="scenarios")]
+
+        path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
+        package = path.replace("/", ".")
+        labels.append(Label(name="package", value=package))
+
         if self.project_name:
             labels.append(Label(name='project_name', value=self.project_name))
         return labels
