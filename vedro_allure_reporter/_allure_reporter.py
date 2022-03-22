@@ -45,6 +45,7 @@ class AllureReporter(Reporter):
         self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = None
         self._attach_scope = False
+        self.project_name = 'unknown'
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
@@ -92,6 +93,7 @@ class AllureReporter(Reporter):
         test_result.labels.extend([
             Label(name="package", value=package),
             Label(name=LabelType.SUITE, value="scenarios"),
+            Label(name='project_name', value=self.project_name),
         ])
 
         return test_result
