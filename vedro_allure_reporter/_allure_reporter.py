@@ -92,12 +92,13 @@ class AllureReporter(Reporter):
         return test_result
 
     def _create_labels(self, scenario_result: ScenarioResult) -> List[Label]:
-        labels = [Label(name=LabelType.SUITE, value="scenarios")]
-
         path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
         package = path.replace("/", ".")
-        labels.append(Label(name="package", value=package))
 
+        labels = [
+            Label(name="package", value=package),
+            Label(name=LabelType.SUITE, value="scenarios"),
+        ]
         if self.project_name:
             labels.append(Label(name='project_name', value=self.project_name))
         return labels
