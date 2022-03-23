@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, List, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -45,6 +45,7 @@ class AllureReporter(Reporter):
         self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = None
         self._attach_scope = False
+        self.project_name = None
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
@@ -86,15 +87,21 @@ class AllureReporter(Reporter):
         test_result.name = scenario_result.scenario.subject
         test_result.historyId = scenario_result.scenario.unique_id
         test_result.testCaseId = scenario_result.scenario.unique_id
-
-        path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
-        package = path.replace("/", ".")
-        test_result.labels.extend([
-            Label(name="package", value=package),
-            Label(name=LabelType.SUITE, value="scenarios"),
-        ])
+        test_result.labels.extend(self._create_labels(scenario_result))
 
         return test_result
+
+    def _create_labels(self, scenario_result: ScenarioResult) -> List[Label]:
+        path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
+        package = path.replace("/", ".")
+
+        labels = [
+            Label(name="package", value=package),
+            Label(name=LabelType.SUITE, value="scenarios"),
+        ]
+        if self.project_name:
+            labels.append(Label(name='project_name', value=self.project_name))
+        return labels
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=type_.extension)
