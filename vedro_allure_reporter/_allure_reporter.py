@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Union, cast, List
+from typing import Any, Dict, List, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
