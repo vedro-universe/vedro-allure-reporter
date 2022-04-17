@@ -2,6 +2,7 @@ from unittest.mock import Mock, call
 
 import pytest
 from baby_steps import given, then, when
+
 from vedro.core import Dispatcher
 from vedro.events import (
     ArgParsedEvent,
@@ -11,9 +12,7 @@ from vedro.events import (
     ScenarioSkippedEvent,
 )
 from vedro.plugins.director import Reporter
-
-from vedro_allure_reporter import AllureReporter
-
+from vedro_allure_reporter import AllureReporterPlugin, AllureReporter
 from ._utils import (
     dispatcher,
     logger_,
@@ -27,20 +26,21 @@ __all__ = ("dispatcher", "plugin_manager_", "logger_", "logger_factory_",)
 
 
 @pytest.fixture()
-def reporter(plugin_manager_, logger_factory_) -> AllureReporter:
-    return AllureReporter(plugin_manager_, logger_factory_)
+def reporter(plugin_manager_, logger_factory_) -> AllureReporterPlugin:
+    return AllureReporterPlugin(AllureReporter,
+                                plugin_manager=plugin_manager_, logger_factory=logger_factory_)
 
 
 def test_reporter():
     with when:
-        reporter = AllureReporter()
+        reporter = AllureReporterPlugin(AllureReporter)
 
     with then:
         assert isinstance(reporter, Reporter)
 
 
 @pytest.mark.asyncio
-async def test_arg_parsed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_arg_parsed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                 plugin_manager_: Mock, logger_factory_: Mock, logger_: Mock):
     with given:
         reporter.subscribe(dispatcher)
@@ -63,7 +63,7 @@ async def test_arg_parsed_event(*, dispatcher: Dispatcher, reporter: AllureRepor
 
 
 @pytest.mark.asyncio
-async def test_scenario_skip_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_skip_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                    plugin_manager_: Mock, logger_: Mock):
     with given:
         reporter.subscribe(dispatcher)
@@ -82,7 +82,7 @@ async def test_scenario_skip_event(*, dispatcher: Dispatcher, reporter: AllureRe
 
 
 @pytest.mark.asyncio
-async def test_scenario_pass_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_pass_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                    plugin_manager_: Mock, logger_: Mock):
     with given:
         reporter.subscribe(dispatcher)
@@ -103,7 +103,7 @@ async def test_scenario_pass_event(*, dispatcher: Dispatcher, reporter: AllureRe
 
 
 @pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                      plugin_manager_: Mock, logger_: Mock):
     with given:
         reporter.subscribe(dispatcher)

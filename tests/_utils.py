@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
+
 from vedro.core import Dispatcher, ScenarioResult, StepResult
 from vedro.plugins.director.rich.test_utils import make_path, make_random_name, make_vscenario
 

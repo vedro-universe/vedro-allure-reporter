@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Type, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -17,7 +17,8 @@ from allure_commons.model2 import (
 )
 from allure_commons.types import AttachmentType, LabelType
 from allure_commons.utils import format_exception, format_traceback
-from vedro.core import Dispatcher, ScenarioResult, StepResult
+
+from vedro.core import Dispatcher, PluginConfig, ScenarioResult, StepResult
 from vedro.events import (
     ArgParsedEvent,
     ArgParseEvent,
@@ -30,14 +31,16 @@ from vedro.events import (
     StepPassedEvent,
     StepRunEvent,
 )
-from vedro.plugins.director import Reporter
+from vedro.plugins.director import DirectorInitEvent, Reporter
 
-__all__ = ("AllureReporter",)
+__all__ = ("AllureReporter", "AllureReporterPlugin",)
 
 
-class AllureReporter(Reporter):
-    def __init__(self, plugin_manager: MetaPluginManager = plugin_manager,
+class AllureReporterPlugin(Reporter):
+    def __init__(self, config: Type["AllureReporter"], *,
+                 plugin_manager: MetaPluginManager = plugin_manager,
                  logger_factory: Any = AllureFileLogger) -> None:
+        super().__init__(config)
         self._plugin_manager = plugin_manager
         self._logger_factory = logger_factory
         self._logger: Union[AllureFileLogger, None] = None
@@ -48,16 +51,21 @@ class AllureReporter(Reporter):
         self.project_name = None
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
-        dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
-                  .listen(ArgParsedEvent, self.on_arg_parsed) \
-                  .listen(ScenarioRunEvent, self.on_scenario_run) \
-                  .listen(ScenarioSkippedEvent, self.on_scenario_skipped) \
-                  .listen(ScenarioFailedEvent, self.on_scenario_failed) \
-                  .listen(ScenarioPassedEvent, self.on_scenario_passed) \
-                  .listen(StepRunEvent, self.on_step_run) \
-                  .listen(StepFailedEvent, self.on_step_failed) \
-                  .listen(StepPassedEvent, self.on_step_passed) \
-                  .listen(CleanupEvent, self.on_cleanup)
+        super().subscribe(dispatcher)
+        dispatcher.listen(DirectorInitEvent, lambda e: e.director.register("allure", self))
+
+    def on_chosen(self) -> None:
+        assert isinstance(self._dispatcher, Dispatcher)
+        self._dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
+                        .listen(ArgParsedEvent, self.on_arg_parsed) \
+                        .listen(ScenarioRunEvent, self.on_scenario_run) \
+                        .listen(ScenarioSkippedEvent, self.on_scenario_skipped) \
+                        .listen(ScenarioFailedEvent, self.on_scenario_failed) \
+                        .listen(ScenarioPassedEvent, self.on_scenario_passed) \
+                        .listen(StepRunEvent, self.on_step_run) \
+                        .listen(StepFailedEvent, self.on_step_failed) \
+                        .listen(StepPassedEvent, self.on_step_passed) \
+                        .listen(CleanupEvent, self.on_cleanup)
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
@@ -176,3 +184,7 @@ class AllureReporter(Reporter):
 
     def on_cleanup(self, event: CleanupEvent) -> None:
         pass
+
+
+class AllureReporter(PluginConfig):
+    plugin = AllureReporterPlugin

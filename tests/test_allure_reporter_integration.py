@@ -1,6 +1,7 @@
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
+
 from vedro.core import Dispatcher, StepResult
 from vedro.events import (
     ArgParsedEvent,
@@ -13,9 +14,7 @@ from vedro.events import (
     StepRunEvent,
 )
 from vedro.plugins.director.rich.test_utils import make_step_result
-
-from vedro_allure_reporter import AllureReporter
-
+from vedro_allure_reporter import AllureReporterPlugin, AllureReporter
 from ._utils import (
     dispatcher,
     logger,
@@ -29,8 +28,8 @@ __all__ = ("dispatcher", "logger",)
 
 
 @pytest.fixture()
-def reporter(logger) -> AllureReporter:
-    return AllureReporter(logger_factory=lambda *args, **kwargs: logger)
+def reporter(logger) -> AllureReporterPlugin:
+    return AllureReporterPlugin(AllureReporter, logger_factory=lambda *args, **kwargs: logger)
 
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
@@ -51,7 +50,7 @@ async def fire_step_failed_event(dispatcher: Dispatcher, step_result: StepResult
 
 
 @pytest.mark.asyncio
-async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                       logger: AllureMemoryLogger):
     with given:
         reporter.subscribe(dispatcher)
@@ -73,7 +72,7 @@ async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: Allur
 
 
 @pytest.mark.asyncio
-async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
         reporter.subscribe(dispatcher)
@@ -98,7 +97,7 @@ async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 
 @pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
         reporter.subscribe(dispatcher)
@@ -124,7 +123,7 @@ async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 @pytest.mark.asyncio
 async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
-                                                reporter: AllureReporter,
+                                                reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
         reporter.subscribe(dispatcher)
@@ -157,7 +156,7 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
 
 @pytest.mark.asyncio
 async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
-                                                reporter: AllureReporter,
+                                                reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
         reporter.subscribe(dispatcher)
