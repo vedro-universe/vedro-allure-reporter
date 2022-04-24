@@ -1,7 +1,6 @@
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-
 from vedro.core import Dispatcher, StepResult
 from vedro.events import (
     ArgParsedEvent,
@@ -14,7 +13,9 @@ from vedro.events import (
     StepRunEvent,
 )
 from vedro.plugins.director.rich.test_utils import make_step_result
-from vedro_allure_reporter import AllureReporterPlugin, AllureReporter
+
+from vedro_allure_reporter import AllureReporter, AllureReporterPlugin
+
 from ._utils import (
     dispatcher,
     logger,

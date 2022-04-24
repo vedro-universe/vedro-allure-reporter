@@ -17,7 +17,6 @@ from allure_commons.model2 import (
 )
 from allure_commons.types import AttachmentType, LabelType
 from allure_commons.utils import format_exception, format_traceback
-
 from vedro.core import Dispatcher, PluginConfig, ScenarioResult, StepResult
 from vedro.events import (
     ArgParsedEvent,
@@ -47,8 +46,8 @@ class AllureReporterPlugin(Reporter):
         self._test_result: Union[TestResult, None] = None
         self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = None
-        self._attach_scope = False
-        self.project_name = None
+        self._attach_scope = config.attach_scope
+        self._labels = config.labels
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         super().subscribe(dispatcher)
@@ -104,11 +103,13 @@ class AllureReporterPlugin(Reporter):
         package = path.replace("/", ".")
 
         labels = [
-            Label(name="package", value=package),
-            Label(name=LabelType.SUITE, value="scenarios"),
+            Label(LabelType.FRAMEWORK, "vedro"),
+            Label("package", package),
+            Label(LabelType.SUITE, "scenarios"),
         ]
-        if self.project_name:
-            labels.append(Label(name='project_name', value=self.project_name))
+        if self._labels:
+            for label in self._labels:
+                labels.append(label)
         return labels
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
@@ -188,3 +189,9 @@ class AllureReporterPlugin(Reporter):
 
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
+
+    # Attach scope to Allure report
+    attach_scope: bool = False
+
+    # Add custom labels
+    labels: List[Label] = []

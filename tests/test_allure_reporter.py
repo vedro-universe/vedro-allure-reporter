@@ -2,7 +2,6 @@ from unittest.mock import Mock, call
 
 import pytest
 from baby_steps import given, then, when
-
 from vedro.core import Dispatcher
 from vedro.events import (
     ArgParsedEvent,
@@ -12,7 +11,9 @@ from vedro.events import (
     ScenarioSkippedEvent,
 )
 from vedro.plugins.director import Reporter
-from vedro_allure_reporter import AllureReporterPlugin, AllureReporter
+
+from vedro_allure_reporter import AllureReporter, AllureReporterPlugin
+
 from ._utils import (
     dispatcher,
     logger_,
