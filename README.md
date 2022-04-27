@@ -9,16 +9,25 @@
 
 ## Installation
 
+### 1. Install package
+
 ```shell
 $ pip3 install vedro-allure-reporter
 ```
 
-```python
-# ./bootstrap.py
-import vedro
-from vedro_allure_reporter import AllureReporter
+### 2. Enable plugin
 
-vedro.run(plugins=[AllureReporter()])
+```python
+# ./vedro.cfg.py
+import vedro
+import vedro_allure_reporter as r
+
+class Config(vedro.Config):
+
+    class Plugins(vedro.Config.Plugins):
+
+        class AllureReporter(r.AllureReporter):
+            enabled = True
 ```
 
 ## Usage
@@ -26,7 +35,7 @@ vedro.run(plugins=[AllureReporter()])
 ### Run tests
 
 ```shell
-$ python3 bootstrap.py -r allure --allure-report-dir ./allure_reports
+$ vedro run -r allure --allure-report-dir ./allure_reports
 ```
 
 ### Generate report via [Allure command-line tool](https://docs.qameta.io/allure/#_installing_a_commandline)
@@ -47,4 +56,26 @@ $ allurectl upload ./allure_reports --launch-id $LAUNCH_ID
 $ allurectl launch close $LAUNCH_ID
 ```
 
-Documentation — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
+Docs — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
+
+## Documentation
+
+### Custom Labels
+
+```python
+# ./vedro.cfg.py
+import vedro
+import vedro_allure_reporter as r
+from vedro_allure_reporter import AllureLabel
+
+class Config(vedro.Config):
+
+    class Plugins(vedro.Config.Plugins):
+
+        class AllureReporter(r.AllureReporter):
+            enabled = True
+
+            labels = [
+                AllureLabel("project_name", "vedro-allure-reporter")
+            ]
+```

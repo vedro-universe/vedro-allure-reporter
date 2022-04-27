@@ -12,11 +12,15 @@ from vedro.events import (
     StepPassedEvent,
     StepRunEvent,
 )
+from vedro.plugins.director import DirectorPlugin
 from vedro.plugins.director.rich.test_utils import make_step_result
 
-from vedro_allure_reporter import AllureReporter
+import vedro_allure_reporter
+from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
 
 from ._utils import (
+    choose_reporter,
+    director,
     dispatcher,
     logger,
     make_parsed_args,
@@ -25,12 +29,15 @@ from ._utils import (
     patch_uuid,
 )
 
-__all__ = ("dispatcher", "logger",)
+__all__ = ("dispatcher", "director", "logger",)
 
 
 @pytest.fixture()
-def reporter(logger) -> AllureReporter:
-    return AllureReporter(logger_factory=lambda *args, **kwargs: logger)
+def reporter(dispatcher: Dispatcher, logger: AllureMemoryLogger) -> AllureReporterPlugin:
+    reporter = AllureReporterPlugin(vedro_allure_reporter.AllureReporter,
+                                    logger_factory=lambda *args, **kwargs: logger)
+    reporter.subscribe(dispatcher)
+    return reporter
 
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
@@ -51,10 +58,12 @@ async def fire_step_failed_event(dispatcher: Dispatcher, step_result: StepResult
 
 
 @pytest.mark.asyncio
-async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_skipped_event(*, dispatcher: Dispatcher,
+                                      director: DirectorPlugin,
+                                      reporter: AllureReporterPlugin,
                                       logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -73,10 +82,12 @@ async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: Allur
 
 
 @pytest.mark.asyncio
-async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_passed_event(*, dispatcher: Dispatcher,
+                                     director: DirectorPlugin,
+                                     reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -98,10 +109,12 @@ async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 
 @pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporter,
+async def test_scenario_failed_event(*, dispatcher: Dispatcher,
+                                     director: DirectorPlugin,
+                                     reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -124,10 +137,11 @@ async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 @pytest.mark.asyncio
 async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
-                                                reporter: AllureReporter,
+                                                director: DirectorPlugin,
+                                                reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -157,10 +171,11 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
 
 @pytest.mark.asyncio
 async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
-                                                reporter: AllureReporter,
+                                                director: DirectorPlugin,
+                                                reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -188,6 +203,38 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
                 step_result_passed,
                 step_result_failed,
             ])
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
+
+
+@pytest.mark.asyncio
+async def test_scenario_custom_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
+                                      logger: AllureMemoryLogger):
+    with given:
+        class AllureReporter(vedro_allure_reporter.AllureReporter):
+            labels = [AllureLabel("name", "value")]
+
+        reporter = AllureReporterPlugin(AllureReporter,
+                                        logger_factory=lambda *args, **kwargs: logger)
+        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
+
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_result = make_scenario_result()
+        with patch_uuid() as uuid:
+            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+
+        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
+        event = ScenarioPassedEvent(scenario_result)
+
+    with when:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, labels=AllureReporter.labels)
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
