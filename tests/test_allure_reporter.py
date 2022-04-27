@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import Mock, call
 
 import pytest
@@ -10,11 +11,13 @@ from vedro.events import (
     ScenarioRunEvent,
     ScenarioSkippedEvent,
 )
-from vedro.plugins.director import Reporter
+from vedro.plugins.director import DirectorPlugin, Reporter
 
 from vedro_allure_reporter import AllureReporter, AllureReporterPlugin
 
 from ._utils import (
+    choose_reporter,
+    director,
     dispatcher,
     logger_,
     logger_factory_,
@@ -23,13 +26,17 @@ from ._utils import (
     plugin_manager_,
 )
 
-__all__ = ("dispatcher", "plugin_manager_", "logger_", "logger_factory_",)
+__all__ = ("dispatcher", "director", "plugin_manager_", "logger_", "logger_factory_",)
 
 
 @pytest.fixture()
-def reporter(plugin_manager_, logger_factory_) -> AllureReporterPlugin:
-    return AllureReporterPlugin(AllureReporter,
-                                plugin_manager=plugin_manager_, logger_factory=logger_factory_)
+def reporter(dispatcher: Dispatcher,
+             plugin_manager_: Any, logger_factory_: Any) -> AllureReporterPlugin:
+    reporter = AllureReporterPlugin(AllureReporter,
+                                    plugin_manager=plugin_manager_,
+                                    logger_factory=logger_factory_)
+    reporter.subscribe(dispatcher)
+    return reporter
 
 
 def test_reporter():
@@ -41,10 +48,14 @@ def test_reporter():
 
 
 @pytest.mark.asyncio
-async def test_arg_parsed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
-                                plugin_manager_: Mock, logger_factory_: Mock, logger_: Mock):
+async def test_arg_parsed_event(*, dispatcher: Dispatcher,
+                                director: DirectorPlugin,
+                                reporter: AllureReporterPlugin,
+                                plugin_manager_: Mock,
+                                logger_factory_: Mock,
+                                logger_: Mock):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
 
         report_dir = "allure_reports"
         args = make_parsed_args(allure_report_dir=report_dir)
@@ -64,10 +75,13 @@ async def test_arg_parsed_event(*, dispatcher: Dispatcher, reporter: AllureRepor
 
 
 @pytest.mark.asyncio
-async def test_scenario_skip_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
-                                   plugin_manager_: Mock, logger_: Mock):
+async def test_scenario_skip_event(*, dispatcher: Dispatcher,
+                                   director: DirectorPlugin,
+                                   reporter: AllureReporterPlugin,
+                                   plugin_manager_: Mock,
+                                   logger_: Mock):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
 
         scenario_result = make_scenario_result()
         event = ScenarioSkippedEvent(scenario_result)
@@ -83,10 +97,13 @@ async def test_scenario_skip_event(*, dispatcher: Dispatcher, reporter: AllureRe
 
 
 @pytest.mark.asyncio
-async def test_scenario_pass_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
-                                   plugin_manager_: Mock, logger_: Mock):
+async def test_scenario_pass_event(*, dispatcher: Dispatcher,
+                                   director: DirectorPlugin,
+                                   reporter: AllureReporterPlugin,
+                                   plugin_manager_: Mock,
+                                   logger_: Mock):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
 
         scenario_result = make_scenario_result()
         await dispatcher.fire(ScenarioRunEvent(scenario_result))
@@ -104,10 +121,13 @@ async def test_scenario_pass_event(*, dispatcher: Dispatcher, reporter: AllureRe
 
 
 @pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
-                                     plugin_manager_: Mock, logger_: Mock):
+async def test_scenario_failed_event(*, dispatcher: Dispatcher,
+                                     director: DirectorPlugin,
+                                     reporter: AllureReporterPlugin,
+                                     plugin_manager_: Mock,
+                                     logger_: Mock):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
 
         scenario_result = make_scenario_result()
         await dispatcher.fire(ScenarioRunEvent(scenario_result))

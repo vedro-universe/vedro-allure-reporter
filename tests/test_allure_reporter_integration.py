@@ -12,11 +12,14 @@ from vedro.events import (
     StepPassedEvent,
     StepRunEvent,
 )
+from vedro.plugins.director import DirectorPlugin
 from vedro.plugins.director.rich.test_utils import make_step_result
 
 from vedro_allure_reporter import AllureReporter, AllureReporterPlugin
 
 from ._utils import (
+    choose_reporter,
+    director,
     dispatcher,
     logger,
     make_parsed_args,
@@ -25,12 +28,15 @@ from ._utils import (
     patch_uuid,
 )
 
-__all__ = ("dispatcher", "logger",)
+__all__ = ("dispatcher", "director", "logger",)
 
 
 @pytest.fixture()
-def reporter(logger) -> AllureReporterPlugin:
-    return AllureReporterPlugin(AllureReporter, logger_factory=lambda *args, **kwargs: logger)
+def reporter(dispatcher: Dispatcher, logger: AllureMemoryLogger) -> AllureReporterPlugin:
+    reporter = AllureReporterPlugin(AllureReporter,
+                                    logger_factory=lambda *args, **kwargs: logger)
+    reporter.subscribe(dispatcher)
+    return reporter
 
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
@@ -51,10 +57,12 @@ async def fire_step_failed_event(dispatcher: Dispatcher, step_result: StepResult
 
 
 @pytest.mark.asyncio
-async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
+async def test_scenario_skipped_event(*, dispatcher: Dispatcher,
+                                      director: DirectorPlugin,
+                                      reporter: AllureReporterPlugin,
                                       logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -73,10 +81,12 @@ async def test_scenario_skipped_event(*, dispatcher: Dispatcher, reporter: Allur
 
 
 @pytest.mark.asyncio
-async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
+async def test_scenario_passed_event(*, dispatcher: Dispatcher,
+                                     director: DirectorPlugin,
+                                     reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -98,10 +108,12 @@ async def test_scenario_passed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 
 @pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: AllureReporterPlugin,
+async def test_scenario_failed_event(*, dispatcher: Dispatcher,
+                                     director: DirectorPlugin,
+                                     reporter: AllureReporterPlugin,
                                      logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -124,10 +136,11 @@ async def test_scenario_failed_event(*, dispatcher: Dispatcher, reporter: Allure
 
 @pytest.mark.asyncio
 async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
+                                                director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()
@@ -157,10 +170,11 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
 
 @pytest.mark.asyncio
 async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
+                                                director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
                                                 logger: AllureMemoryLogger):
     with given:
-        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
         scenario_result = make_scenario_result()

@@ -7,11 +7,17 @@ from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
-from vedro.core import Dispatcher, ScenarioResult, StepResult
+from vedro import Config
+from vedro.core import ArgumentParser, Dispatcher, ScenarioResult, StepResult
+from vedro.events import ArgParseEvent, ConfigLoadedEvent
+from vedro.plugins.director import Director, DirectorPlugin
 from vedro.plugins.director.rich.test_utils import make_path, make_random_name, make_vscenario
 
-__all__ = ("plugin_manager_", "logger_", "logger_factory_", "dispatcher",
-           "make_parsed_args", "logger", "patch_uuid", "make_test_case", "make_scenario_result",)
+from vedro_allure_reporter import AllureReporterPlugin
+
+__all__ = ("plugin_manager_", "logger_", "logger_factory_", "dispatcher", "director",
+           "make_parsed_args", "logger", "patch_uuid", "make_test_case", "make_scenario_result",
+           "choose_reporter",)
 
 
 @pytest.fixture()
@@ -35,12 +41,20 @@ def dispatcher() -> Dispatcher:
 
 
 @pytest.fixture()
+def director(dispatcher: Dispatcher) -> DirectorPlugin:
+    director = DirectorPlugin(Director)
+    director.subscribe(dispatcher)
+    return director
+
+
+@pytest.fixture()
 def logger() -> AllureMemoryLogger:
     return AllureMemoryLogger()
 
 
 def make_parsed_args(*, allure_report_dir: str, allure_attach_scope: bool = False) -> Namespace:
-    return Namespace(allure_report_dir=allure_report_dir, allure_attach_scope=allure_attach_scope)
+    return Namespace(allure_report_dir=allure_report_dir,
+                     allure_attach_scope=allure_attach_scope)
 
 
 @contextmanager
@@ -72,14 +86,9 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
         "historyId": scenario_result.scenario.unique_id,
         "testCaseId": scenario_result.scenario.unique_id,
         "labels": [
-            {
-                "name": "package",
-                "value": "scenarios.namespace"
-            },
-            {
-                "name": "suite",
-                "value": "scenarios",
-            }
+            {"name": "framework", "value": "vedro"},
+            {"name": "package", "value": "scenarios.namespace"},
+            {"name": "suite", "value": "scenarios"},
         ]
     }
     if steps:
@@ -92,3 +101,9 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
                 "stop": int(step_result.ended_at * 1000),
             })
     return test_case
+
+
+async def choose_reporter(dispatcher: Dispatcher,
+                          director: DirectorPlugin, reporter: AllureReporterPlugin) -> None:
+    await dispatcher.fire(ConfigLoadedEvent(Path(), Config))
+    await dispatcher.fire(ArgParseEvent(ArgumentParser()))
