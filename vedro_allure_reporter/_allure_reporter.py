@@ -21,7 +21,6 @@ from vedro.core import Dispatcher, PluginConfig, ScenarioResult, StepResult
 from vedro.events import (
     ArgParsedEvent,
     ArgParseEvent,
-    CleanupEvent,
     ScenarioFailedEvent,
     ScenarioPassedEvent,
     ScenarioRunEvent,
@@ -63,8 +62,7 @@ class AllureReporterPlugin(Reporter):
                         .listen(ScenarioPassedEvent, self.on_scenario_passed) \
                         .listen(StepRunEvent, self.on_step_run) \
                         .listen(StepFailedEvent, self.on_step_failed) \
-                        .listen(StepPassedEvent, self.on_step_passed) \
-                        .listen(CleanupEvent, self.on_cleanup)
+                        .listen(StepPassedEvent, self.on_step_passed)
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
@@ -182,9 +180,6 @@ class AllureReporterPlugin(Reporter):
 
     def on_step_passed(self, event: StepPassedEvent) -> None:
         self._stop_step(self._test_step_result, event.step_result, Status.PASSED)
-
-    def on_cleanup(self, event: CleanupEvent) -> None:
-        pass
 
 
 class AllureReporter(PluginConfig):

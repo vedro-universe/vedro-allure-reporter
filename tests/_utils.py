@@ -13,7 +13,7 @@ from vedro.events import ArgParseEvent, ConfigLoadedEvent
 from vedro.plugins.director import Director, DirectorPlugin
 from vedro.plugins.director.rich.test_utils import make_path, make_random_name, make_vscenario
 
-from vedro_allure_reporter import AllureReporterPlugin
+from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
 
 __all__ = ("plugin_manager_", "logger_", "logger_factory_", "dispatcher", "director",
            "make_parsed_args", "logger", "patch_uuid", "make_test_case", "make_scenario_result",
@@ -76,7 +76,8 @@ def make_scenario_result(path: Optional[Path] = None,
 
 
 def make_test_case(uuid: str, scenario_result: ScenarioResult,
-                   steps: Optional[List[StepResult]] = None) -> Dict[str, Any]:
+                   steps: Optional[List[StepResult]] = None,
+                   labels: Optional[List[AllureLabel]] = None) -> Dict[str, Any]:
     test_case = {
         "uuid": uuid,
         "name": scenario_result.scenario.subject,
@@ -100,6 +101,9 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
                 "start": int(step_result.started_at * 1000),
                 "stop": int(step_result.ended_at * 1000),
             })
+    if labels:
+        for label in labels:
+            test_case["labels"].append({"name": label.name, "value": label.value})
     return test_case
 
 
