@@ -7,11 +7,11 @@ from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
-from vedro import Config
-from vedro.core import ArgumentParser, Dispatcher, ScenarioResult, StepResult
+from vedro import Config, Scenario
+from vedro.core import ArgumentParser, Dispatcher, ScenarioResult, StepResult, VirtualScenario
 from vedro.events import ArgParseEvent, ConfigLoadedEvent
 from vedro.plugins.director import Director, DirectorPlugin
-from vedro.plugins.director.rich.test_utils import make_path, make_random_name, make_vscenario
+from vedro.plugins.director.rich.test_utils import make_path, make_random_name
 
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
 
@@ -65,13 +65,29 @@ def patch_uuid(uuid: Optional[str] = None):
         yield uuid
 
 
+def make_vscenario(*,
+                   path: Optional[Path] = None,
+                   subject: Optional[str] = None,
+                   tags: Optional[List[str]] = None) -> VirtualScenario:
+    namespace = {}
+    if path is not None:
+        namespace["__file__"] = str(path)
+    if subject is not None:
+        namespace["subject"] = subject
+    if tags is not None:
+        namespace["tags"] = tags
+    scenario = type("Scenario", (Scenario,), namespace)
+    return VirtualScenario(scenario, [])
+
+
 def make_scenario_result(path: Optional[Path] = None,
-                         subject: Optional[str] = None) -> ScenarioResult:
+                         subject: Optional[str] = None,
+                         tags: Optional[List[str]] = None) -> ScenarioResult:
     if path is None:
         path = make_path("namespace")
     if subject is None:
         subject = make_random_name()
-    vscenario = make_vscenario(path=path, subject=subject)
+    vscenario = make_vscenario(path=path, subject=subject, tags=tags)
     return ScenarioResult(vscenario)
 
 

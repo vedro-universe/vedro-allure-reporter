@@ -108,6 +108,11 @@ class AllureReporterPlugin(Reporter):
         if self._labels:
             for label in self._labels:
                 labels.append(label)
+
+        tags = getattr(scenario_result.scenario._orig_scenario, "tags", ())
+        for tag in tags:
+            labels.append(Label(LabelType.TAG, tag))
+
         return labels
 
     def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
@@ -187,6 +192,9 @@ class AllureReporter(PluginConfig):
 
     # Attach scope to Allure report
     attach_scope: bool = False
+
+    # Attach tags to Allure report
+    attach_tags: bool = True
 
     # Add custom labels
     labels: List[Label] = []
