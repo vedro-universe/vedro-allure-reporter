@@ -20,13 +20,13 @@ $ pip3 install vedro-allure-reporter
 ```python
 # ./vedro.cfg.py
 import vedro
-import vedro_allure_reporter as r
+from vedro_allure_reporter import AllureReporter as VedroAllureReporter
 
 class Config(vedro.Config):
 
     class Plugins(vedro.Config.Plugins):
 
-        class AllureReporter(r.AllureReporter):
+        class AllureReporter(VedroAllureReporter):
             enabled = True
 ```
 
@@ -65,14 +65,14 @@ Docs — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
 ```python
 # ./vedro.cfg.py
 import vedro
-import vedro_allure_reporter as r
+from vedro_allure_reporter import AllureReporter as VedroAllureReporter
 from vedro_allure_reporter import AllureLabel
 
 class Config(vedro.Config):
 
     class Plugins(vedro.Config.Plugins):
 
-        class AllureReporter(r.AllureReporter):
+        class AllureReporter(VedroAllureReporter):
             enabled = True
 
             labels = [
