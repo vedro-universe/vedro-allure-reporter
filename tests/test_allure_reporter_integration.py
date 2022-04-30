@@ -238,3 +238,30 @@ async def test_scenario_custom_labels(*, dispatcher: Dispatcher, director: Direc
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
+
+
+@pytest.mark.asyncio
+async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin,
+                             reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        tags = ["API"]
+        scenario_result = make_scenario_result(tags=tags)
+        with patch_uuid() as uuid:
+            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+
+        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
+        event = ScenarioPassedEvent(scenario_result)
+
+    with when:
+        await dispatcher.fire(event)
+
+    with then:
+        # print(logger.test_cases)
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, labels=[AllureLabel("tag", "API")])
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
