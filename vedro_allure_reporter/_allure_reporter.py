@@ -135,7 +135,7 @@ class AllureReporterPlugin(Reporter):
         test_result.start = self._to_seconds(scenario_result.started_at or utils.now())
         test_result.stop = self._to_seconds(scenario_result.ended_at or utils.now())
 
-        if self._attach_scope:
+        if self._attach_scope and (status != Status.SKIPPED):
             body = self._format_scope(scenario_result.scope or {})
             attachment = self._create_attachment("Scope", AttachmentType.TEXT)
             test_result.attachments.append(attachment)
