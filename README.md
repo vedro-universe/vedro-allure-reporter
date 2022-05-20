@@ -21,7 +21,6 @@ $ pip3 install vedro-allure-reporter
 # ./vedro.cfg.py
 import vedro
 import vedro_allure_reporter as allure_reporter
-from vedro_allure_reporter import AllureLabel
 
 class Config(vedro.Config):
 

@@ -1,5 +1,6 @@
 import json
 import os
+from time import time
 from typing import Any, Dict, List, Type, Union, cast
 
 import allure_commons.utils as utils
@@ -132,8 +133,8 @@ class AllureReporterPlugin(Reporter):
     def _stop_scenario(self, test_result: TestResult,
                        scenario_result: ScenarioResult, status: Status) -> None:
         test_result.status = status
-        test_result.start = self._to_seconds(scenario_result.started_at or utils.now())
-        test_result.stop = self._to_seconds(scenario_result.ended_at or utils.now())
+        test_result.start = self._to_seconds(scenario_result.started_at or time())
+        test_result.stop = self._to_seconds(scenario_result.ended_at or time())
 
         if self._attach_scope and (status != Status.SKIPPED):
             body = self._format_scope(scenario_result.scope or {})
@@ -154,8 +155,8 @@ class AllureReporterPlugin(Reporter):
     def _stop_step(self, test_step_result: TestStepResult,
                    step_result: StepResult, status: Status) -> None:
         test_step_result.status = status
-        test_step_result.start = self._to_seconds(step_result.started_at or utils.now())
-        test_step_result.stop = self._to_seconds(step_result.ended_at or utils.now())
+        test_step_result.start = self._to_seconds(step_result.started_at or time())
+        test_step_result.stop = self._to_seconds(step_result.ended_at or time())
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._test_result = self._start_scenario(event.scenario_result)
