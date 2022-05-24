@@ -91,7 +91,7 @@ async def test_scenario_skip_event(*, dispatcher: Dispatcher,
 
     with then:
         assert plugin_manager_.mock_calls == [
-            call.hook.report_result(result=reporter._test_result)
+            # call.hook.report_result(result=reporter._test_result)
         ]
         assert logger_.mock_calls == []
 

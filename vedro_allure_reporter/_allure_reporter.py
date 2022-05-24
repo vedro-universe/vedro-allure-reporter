@@ -162,8 +162,11 @@ class AllureReporterPlugin(Reporter):
         self._test_result = self._start_scenario(event.scenario_result)
 
     def on_scenario_skipped(self, event: ScenarioRunEvent) -> None:
-        self._test_result = self._start_scenario(event.scenario_result)
-        self._stop_scenario(self._test_result, event.scenario_result, Status.SKIPPED)
+        vscenario = event.scenario_result.scenario
+        skipped_by_user = getattr(vscenario._orig_scenario, "__vedro__skipped__", False)
+        if skipped_by_user:
+            self._test_result = self._start_scenario(event.scenario_result)
+            self._stop_scenario(self._test_result, event.scenario_result, Status.SKIPPED)
 
     def on_scenario_failed(self, event: ScenarioFailedEvent) -> None:
         self._stop_scenario(self._test_result, event.scenario_result, Status.FAILED)
