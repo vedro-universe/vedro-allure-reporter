@@ -52,7 +52,7 @@ class AllureReporterPlugin(Reporter):
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
-        self._labels = config.labels
+        self._config_labels = config.labels
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         super().subscribe(dispatcher)
@@ -112,13 +112,17 @@ class AllureReporterPlugin(Reporter):
             Label("package", package),
             Label(LabelType.SUITE, "scenarios"),
         ]
-        if self._labels:
-            for label in self._labels:
+        if self._config_labels:
+            for label in self._config_labels:
                 labels.append(label)
 
         tags = getattr(scenario_result.scenario._orig_scenario, "tags", ())
         for tag in tags:
             labels.append(Label(LabelType.TAG, tag))
+
+        scenario_labels = getattr(scenario_result.scenario._orig_scenario, "labels", ())
+        for label in scenario_labels:
+            labels.append(Label(label.name, label.value))
 
         return labels
 
