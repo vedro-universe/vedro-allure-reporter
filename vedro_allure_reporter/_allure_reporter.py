@@ -1,24 +1,19 @@
 import json
 import os
+from mimetypes import guess_extension
 from time import time
-from typing import Any, Dict, List, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
 from allure_commons.logger import AllureFileLogger
-from allure_commons.model2 import (
-    ATTACHMENT_PATTERN,
-    Attachment,
-    Label,
-    Status,
-    StatusDetails,
-    TestResult,
-    TestStepResult,
-)
-from allure_commons.types import AttachmentType, LabelType
+from allure_commons.model2 import ATTACHMENT_PATTERN
+from allure_commons.model2 import Attachment as AllureAttachment
+from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
+from allure_commons.types import LabelType
 from allure_commons.utils import format_exception, format_traceback
-from vedro.core import Dispatcher, PluginConfig, ScenarioResult, StepResult
+from vedro.core import Attachment, Dispatcher, PluginConfig, ScenarioResult, StepResult
 from vedro.events import (
     ArgParsedEvent,
     ArgParseEvent,
@@ -116,9 +111,21 @@ class AllureReporterPlugin(Reporter):
 
         return labels
 
-    def _create_attachment(self, name: str, type_: AttachmentType) -> Attachment:
-        file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=type_.extension)
-        return Attachment(name=name, source=file_name, type=type_.mime_type)
+    def _create_attachment(self, name: str, mime_type: str,
+                           ext: Optional[str] = None) -> AllureAttachment:
+        if ext is None:
+            guessed = guess_extension(mime_type)
+            ext = guessed.lstrip(".") if guessed is not None else "unknown"
+        file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
+        return AllureAttachment(name=name, source=file_name, type=mime_type)
+
+    def _add_attachments(self, test_result: Union[TestResult, TestStepResult],
+                         attachments: List[Attachment]) -> None:
+        for attachment in attachments:
+            allure_attachment = self._create_attachment(attachment.name, attachment.mime_type)
+            test_result.attachments.append(allure_attachment)
+            self._plugin_manager.hook.report_attached_data(body=attachment.data,
+                                                           file_name=allure_attachment.source)
 
     def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
         res = ""
@@ -135,12 +142,12 @@ class AllureReporterPlugin(Reporter):
         test_result.status = status
         test_result.start = self._to_seconds(scenario_result.started_at or time())
         test_result.stop = self._to_seconds(scenario_result.ended_at or time())
+        self._add_attachments(test_result, scenario_result.attachments)
 
         if self._attach_scope and (status != Status.SKIPPED):
             body = self._format_scope(scenario_result.scope or {})
-            attachment = self._create_attachment("Scope", AttachmentType.TEXT)
+            attachment = self._create_attachment("Scope", "text/plain", "txt")
             test_result.attachments.append(attachment)
-
             self._plugin_manager.hook.report_attached_data(body=body, file_name=attachment.source)
 
         self._plugin_manager.hook.report_result(result=test_result)
@@ -157,6 +164,7 @@ class AllureReporterPlugin(Reporter):
         test_step_result.status = status
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())
+        self._add_attachments(test_step_result, step_result.attachments)
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._test_result = self._start_scenario(event.scenario_result)
