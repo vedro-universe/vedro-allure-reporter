@@ -2,10 +2,14 @@
 
 ## v1.0
 
-### v1.2.0 (2022-06-05)
+### v1.3.0 (2022-06-05)
 
 - Add attachments [#4](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/4)
 - Param `--allure-report-dir` is now optional
+
+### v1.2.0 (2022-05-25)
+
+- Fix: send only skipped by user
 
 ### v1.1.0 (2022-04-30)
 
