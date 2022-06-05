@@ -2,7 +2,7 @@ import json
 import os
 from mimetypes import guess_extension
 from time import time
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Type, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -13,7 +13,15 @@ from allure_commons.model2 import Attachment as AllureAttachment
 from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
 from allure_commons.types import LabelType
 from allure_commons.utils import format_exception, format_traceback
-from vedro.core import Attachment, Dispatcher, PluginConfig, ScenarioResult, StepResult
+from vedro.core import (
+    Artifact,
+    Dispatcher,
+    FileArtifact,
+    MemoryArtifact,
+    PluginConfig,
+    ScenarioResult,
+    StepResult,
+)
 from vedro.events import (
     ArgParsedEvent,
     ArgParseEvent,
@@ -42,6 +50,7 @@ class AllureReporterPlugin(Reporter):
         self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = None
         self._attach_scope = config.attach_scope
+        self._attach_artifacts = config.attach_artifacts
         self._labels = config.labels
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
@@ -111,21 +120,40 @@ class AllureReporterPlugin(Reporter):
 
         return labels
 
-    def _create_attachment(self, name: str, mime_type: str,
-                           ext: Optional[str] = None) -> AllureAttachment:
-        if ext is None:
-            guessed = guess_extension(mime_type)
-            ext = guessed.lstrip(".") if guessed is not None else "unknown"
+    def _create_attachment(self, name: str, mime_type: str, ext: str) -> AllureAttachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
         return AllureAttachment(name=name, source=file_name, type=mime_type)
 
+    def _add_memory_attachment(self, artifact: MemoryArtifact) -> AllureAttachment:
+        guessed = guess_extension(artifact.mime_type)
+        ext = guessed.lstrip(".") if guessed else "unknown"
+        attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
+
+        self._plugin_manager.hook.report_attached_data(body=artifact.data,
+                                                       file_name=attachment.source)
+
+        return attachment
+
+    def _add_file_attachment(self, artifact: FileArtifact) -> AllureAttachment:
+        suffix = artifact.path.suffix
+        ext = suffix.lstrip(".") if suffix else "unknown"
+        attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
+
+        self._plugin_manager.hook.report_attached_file(source=artifact.path,
+                                                       file_name=attachment.source)
+
+        return attachment
+
     def _add_attachments(self, test_result: Union[TestResult, TestStepResult],
-                         attachments: List[Attachment]) -> None:
-        for attachment in attachments:
-            allure_attachment = self._create_attachment(attachment.name, attachment.mime_type)
-            test_result.attachments.append(allure_attachment)
-            self._plugin_manager.hook.report_attached_data(body=attachment.data,
-                                                           file_name=allure_attachment.source)
+                         artifacts: List[Artifact]) -> None:
+        for artifact in artifacts:
+            if isinstance(artifact, MemoryArtifact):
+                attachment = self._add_memory_attachment(artifact)
+            elif isinstance(artifact, FileArtifact):
+                attachment = self._add_file_attachment(artifact)
+            else:
+                raise ValueError(f"Unknown artifact type {type(artifact)}")
+            test_result.attachments.append(attachment)
 
     def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
         res = ""
@@ -142,13 +170,14 @@ class AllureReporterPlugin(Reporter):
         test_result.status = status
         test_result.start = self._to_seconds(scenario_result.started_at or time())
         test_result.stop = self._to_seconds(scenario_result.ended_at or time())
-        self._add_attachments(test_result, scenario_result.attachments)
+        if self._attach_artifacts:
+            self._add_attachments(test_result, scenario_result.artifacts)
 
         if self._attach_scope and (status != Status.SKIPPED):
             body = self._format_scope(scenario_result.scope or {})
-            attachment = self._create_attachment("Scope", "text/plain", "txt")
+            artifact = MemoryArtifact("Scope", "text/plain", body.encode())
+            attachment = self._add_memory_attachment(artifact)
             test_result.attachments.append(attachment)
-            self._plugin_manager.hook.report_attached_data(body=body, file_name=attachment.source)
 
         self._plugin_manager.hook.report_result(result=test_result)
 
@@ -164,7 +193,8 @@ class AllureReporterPlugin(Reporter):
         test_step_result.status = status
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())
-        self._add_attachments(test_step_result, step_result.attachments)
+        if self._attach_artifacts:
+            self._add_attachments(test_step_result, step_result.artifacts)
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._test_result = self._start_scenario(event.scenario_result)
@@ -207,6 +237,9 @@ class AllureReporter(PluginConfig):
 
     # Attach tags to Allure report
     attach_tags: bool = True
+
+    # Attach artifacts to Allure report
+    attach_artifacts: bool = True
 
     # Add custom labels
     labels: List[Label] = []
