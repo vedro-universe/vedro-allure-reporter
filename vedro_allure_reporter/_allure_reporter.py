@@ -1,6 +1,7 @@
 import json
 import os
 from mimetypes import guess_extension
+from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Type, Union, cast
 
@@ -48,7 +49,7 @@ class AllureReporterPlugin(Reporter):
         self._logger: Union[AllureFileLogger, None] = None
         self._test_result: Union[TestResult, None] = None
         self._test_step_result: Union[TestStepResult, None] = None
-        self._report_dir = None
+        self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
         self._labels = config.labels
@@ -73,7 +74,8 @@ class AllureReporterPlugin(Reporter):
         group = event.arg_parser.add_argument_group("Allure Reporter")
 
         group.add_argument("--allure-report-dir",
-                           required=True,
+                           default=self._report_dir,
+                           type=Path,
                            help="Set directory for Allure reports")
         group.add_argument("--allure-attach-scope",
                            action='store_true',
@@ -231,6 +233,9 @@ class AllureReporterPlugin(Reporter):
 
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
+
+    # Set directory for Allure reports
+    report_dir: Path = Path("./allure_reports")
 
     # Attach scope to Allure report
     attach_scope: bool = False
