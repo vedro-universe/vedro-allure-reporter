@@ -1,7 +1,9 @@
+from pathlib import Path
+
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, StepResult
+from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, StepResult
 from vedro.events import (
     ArgParsedEvent,
     ScenarioFailedEvent,
@@ -20,6 +22,7 @@ from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
 
 from ._utils import (
     choose_reporter,
+    create_attachment,
     director,
     dispatcher,
     logger,
@@ -259,9 +262,74 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         await dispatcher.fire(event)
 
     with then:
-        # print(logger.test_cases)
         assert logger.test_cases == [
             make_test_case(uuid, scenario_result, labels=[AllureLabel("tag", "API")])
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
+
+
+@pytest.mark.asyncio
+async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
+                                           director: DirectorPlugin,
+                                           reporter: AllureReporterPlugin,
+                                           logger: AllureMemoryLogger):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_result = make_scenario_result()
+        with patch_uuid() as uuid:
+            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+
+        scenario_result = scenario_result.mark_passed().set_started_at(1.0).set_ended_at(3.0)
+        artifact = MemoryArtifact("log", "text/plain", b"<body>")
+        scenario_result.attach(artifact)
+
+        event = ScenarioPassedEvent(scenario_result)
+
+    with when, patch_uuid() as attachment_uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, attachments=[
+                create_attachment(artifact, attachment_uuid),
+            ])
+        ]
+        assert logger.test_containers == []
+        assert list(logger.attachments.values()) == [artifact.data]
+
+
+@pytest.mark.asyncio
+async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispatcher,
+                                           director: DirectorPlugin,
+                                           reporter: AllureReporterPlugin,
+                                           logger: AllureMemoryLogger):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_result = make_scenario_result()
+        with patch_uuid() as uuid:
+            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+
+        scenario_result = scenario_result.mark_passed().set_started_at(1.0).set_ended_at(3.0)
+        path = tmp_path / "log.txt"
+        path.write_bytes(b"<body>")
+        artifact = FileArtifact("log", "text/plain", path)
+        scenario_result.attach(artifact)
+
+        event = ScenarioPassedEvent(scenario_result)
+
+    with when, patch_uuid() as attachment_uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, attachments=[
+                create_attachment(artifact, attachment_uuid),
+            ])
+        ]
+        assert logger.test_containers == []
+        assert list(logger.attachments.values()) == []  # not implemented in AllureMemoryLogger
