@@ -87,7 +87,7 @@ def make_vscenario(*,
     if tags is not None:
         namespace["tags"] = tags
     if labels is not None:
-        namespace['labels'] = labels
+        namespace['__vedro__allure_labels__'] = labels
     scenario = type("Scenario", (Scenario,), namespace)
     return VirtualScenario(scenario, [])
 
