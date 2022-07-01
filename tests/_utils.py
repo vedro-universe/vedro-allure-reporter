@@ -77,7 +77,8 @@ def patch_uuid(uuid: Optional[str] = None):
 def make_vscenario(*,
                    path: Optional[Path] = None,
                    subject: Optional[str] = None,
-                   tags: Optional[List[str]] = None) -> VirtualScenario:
+                   tags: Optional[List[str]] = None,
+                   labels: Optional[List[AllureLabel]] = None) -> VirtualScenario:
     namespace = {}
     if path is not None:
         namespace["__file__"] = str(path)
@@ -85,18 +86,21 @@ def make_vscenario(*,
         namespace["subject"] = subject
     if tags is not None:
         namespace["tags"] = tags
+    if labels is not None:
+        namespace['__vedro__allure_labels__'] = labels
     scenario = type("Scenario", (Scenario,), namespace)
     return VirtualScenario(scenario, [])
 
 
 def make_scenario_result(path: Optional[Path] = None,
                          subject: Optional[str] = None,
-                         tags: Optional[List[str]] = None) -> ScenarioResult:
+                         tags: Optional[List[str]] = None,
+                         labels: Optional[List[AllureLabel]] = None) -> ScenarioResult:
     if path is None:
         path = make_path("namespace")
     if subject is None:
         subject = make_random_name()
-    vscenario = make_vscenario(path=path, subject=subject, tags=tags)
+    vscenario = make_vscenario(path=path, subject=subject, tags=tags, labels=labels)
     return ScenarioResult(vscenario)
 
 

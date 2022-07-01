@@ -3,7 +3,7 @@ import os
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
-from typing import Any, Dict, List, Type, Union, cast
+from typing import Any, Dict, List, Tuple, Type, Union, cast
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -52,7 +52,7 @@ class AllureReporterPlugin(Reporter):
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
-        self._labels = config.labels
+        self._config_labels = config.labels
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
         super().subscribe(dispatcher)
@@ -112,15 +112,24 @@ class AllureReporterPlugin(Reporter):
             Label("package", package),
             Label(LabelType.SUITE, "scenarios"),
         ]
-        if self._labels:
-            for label in self._labels:
+        if self._config_labels:
+            for label in self._config_labels:
                 labels.append(label)
 
         tags = getattr(scenario_result.scenario._orig_scenario, "tags", ())
         for tag in tags:
             labels.append(Label(LabelType.TAG, tag))
 
+        scenario_labels = self._get_scenario_labels(scenario_result)
+        for label in scenario_labels:
+            labels.append(Label(label.name, label.value))
+
         return labels
+
+    def _get_scenario_labels(self, scenario_result: ScenarioResult) -> Tuple[Label, ...]:
+        template = getattr(scenario_result.scenario._orig_scenario, "__vedro__template__", None)
+        scenario = template or scenario_result.scenario._orig_scenario
+        return getattr(scenario, "__vedro__allure_labels__", ())
 
     def _create_attachment(self, name: str, mime_type: str, ext: str) -> AllureAttachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)

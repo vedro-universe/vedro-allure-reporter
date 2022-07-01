@@ -212,7 +212,7 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
 
 
 @pytest.mark.asyncio
-async def test_scenario_custom_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
+async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
                                       logger: AllureMemoryLogger):
     with given:
         class AllureReporter(vedro_allure_reporter.AllureReporter):
@@ -333,3 +333,29 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
         ]
         assert logger.test_containers == []
         assert list(logger.attachments.values()) == []  # not implemented in AllureMemoryLogger
+
+
+@pytest.mark.asyncio
+async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
+                               reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_labels = [AllureLabel('name', 'value')]
+        scenario_result = make_scenario_result(labels=scenario_labels)
+        with patch_uuid() as uuid:
+            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+
+        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
+        event = ScenarioPassedEvent(scenario_result)
+
+    with when:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, labels=scenario_labels)
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
