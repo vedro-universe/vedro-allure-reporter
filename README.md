@@ -60,7 +60,7 @@ Docs — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
 
 ## Documentation
 
-### Custom Labels
+### Custom Global Labels
 
 ```python
 # ./vedro.cfg.py
@@ -78,4 +78,17 @@ class Config(vedro.Config):
             labels = [
                 AllureLabel("project_name", "vedro-allure-reporter")
             ]
+```
+
+### Custom Scenario Labels
+
+```python
+# ./scenarios/sign_up_user.py
+import vedro
+from vedro_allure_reporter import allure_labels, Story, AllureLabel
+
+@allure_labels(Story("Sign Up"), AllureLabel("custom", "value"))
+class Scenario(vedro.Scenario):
+    subject = "sign up user via email"
+
 ```
