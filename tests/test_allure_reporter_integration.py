@@ -3,16 +3,13 @@ from pathlib import Path
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, StepResult
+from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
 from vedro.events import (
     ArgParsedEvent,
     ScenarioFailedEvent,
     ScenarioPassedEvent,
     ScenarioRunEvent,
     ScenarioSkippedEvent,
-    StepFailedEvent,
-    StepPassedEvent,
-    StepRunEvent,
 )
 from vedro.plugins.director import DirectorPlugin
 from vedro.plugins.director.rich.test_utils import make_step_result
@@ -48,16 +45,6 @@ async def fire_arg_parsed_event(dispatcher: Dispatcher,
     args = make_parsed_args(allure_report_dir=report_dir)
     event = ArgParsedEvent(args)
     await dispatcher.fire(event)
-
-
-async def fire_step_passed_event(dispatcher: Dispatcher, step_result: StepResult) -> None:
-    await dispatcher.fire(StepRunEvent(step_result))
-    await dispatcher.fire(StepPassedEvent(step_result))
-
-
-async def fire_step_failed_event(dispatcher: Dispatcher, step_result: StepResult) -> None:
-    await dispatcher.fire(StepRunEvent(step_result))
-    await dispatcher.fire(StepFailedEvent(step_result))
 
 
 @pytest.mark.asyncio
@@ -152,9 +139,10 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
             await dispatcher.fire(ScenarioRunEvent(scenario_result))
 
         t = 1.0
-        step_result_passed = make_step_result().mark_passed()
-        await fire_step_passed_event(dispatcher,
-                                     step_result_passed.set_started_at(t + 1).set_ended_at(t + 2))
+        step_result_passed = (make_step_result().mark_passed()
+                                                .set_started_at(t + 1)
+                                                .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result_passed)
 
         scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
         event = ScenarioPassedEvent(scenario_result)
@@ -186,13 +174,15 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
             await dispatcher.fire(ScenarioRunEvent(scenario_result))
 
         t = 1.0
-        step_result_passed = make_step_result().mark_passed()
-        await fire_step_passed_event(dispatcher,
-                                     step_result_passed.set_started_at(t + 1).set_ended_at(t + 2))
+        step_result_passed = (make_step_result().mark_passed()
+                              .set_started_at(t + 1)
+                              .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result_passed)
 
-        step_result_failed = make_step_result().mark_failed()
-        await fire_step_failed_event(dispatcher,
-                                     step_result_failed.set_started_at(t + 3).set_ended_at(t + 4))
+        step_result_failed = (make_step_result().mark_failed()
+                              .set_started_at(t + 3)
+                              .set_ended_at(t + 4))
+        scenario_result.add_step_result(step_result_failed)
 
         scenario_result = scenario_result.mark_failed().set_started_at(t).set_ended_at(t + 5)
         event = ScenarioFailedEvent(scenario_result)
