@@ -2,6 +2,14 @@
 
 ## v1.0
 
+### v1.5.0 (2022-07-25)
+
+- Fix postponed step attachment [#6](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/6)
+
+### v1.4.0 (2022-07-01)
+
+- Add scenario allure labels [#5](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/5)
+
 ### v1.3.0 (2022-06-05)
 
 - Add attachments [#4](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/4)
