@@ -3,7 +3,7 @@ import os
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
-from typing import Any, Dict, List, Tuple, Type, Union, cast
+from typing import Any, Dict, List, Tuple, Type, Union
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -22,6 +22,8 @@ from vedro.core import (
     PluginConfig,
     ScenarioResult,
     StepResult,
+    StepStatus,
+    VirtualScenario,
 )
 from vedro.events import (
     ArgParsedEvent,
@@ -30,9 +32,6 @@ from vedro.events import (
     ScenarioPassedEvent,
     ScenarioRunEvent,
     ScenarioSkippedEvent,
-    StepFailedEvent,
-    StepPassedEvent,
-    StepRunEvent,
 )
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
@@ -48,7 +47,6 @@ class AllureReporterPlugin(Reporter):
         self._logger_factory = logger_factory
         self._logger: Union[AllureFileLogger, None] = None
         self._test_result: Union[TestResult, None] = None
-        self._test_step_result: Union[TestStepResult, None] = None
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
@@ -65,10 +63,7 @@ class AllureReporterPlugin(Reporter):
                         .listen(ScenarioRunEvent, self.on_scenario_run) \
                         .listen(ScenarioSkippedEvent, self.on_scenario_skipped) \
                         .listen(ScenarioFailedEvent, self.on_scenario_failed) \
-                        .listen(ScenarioPassedEvent, self.on_scenario_passed) \
-                        .listen(StepRunEvent, self.on_step_run) \
-                        .listen(StepFailedEvent, self.on_step_failed) \
-                        .listen(StepPassedEvent, self.on_step_passed)
+                        .listen(ScenarioPassedEvent, self.on_scenario_passed)
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
@@ -99,12 +94,12 @@ class AllureReporterPlugin(Reporter):
         test_result.name = scenario_result.scenario.subject
         test_result.historyId = scenario_result.scenario.unique_id
         test_result.testCaseId = scenario_result.scenario.unique_id
-        test_result.labels.extend(self._create_labels(scenario_result))
+        test_result.labels.extend(self._create_labels(scenario_result.scenario))
 
         return test_result
 
-    def _create_labels(self, scenario_result: ScenarioResult) -> List[Label]:
-        path = os.path.dirname(os.path.relpath(scenario_result.scenario.path))
+    def _create_labels(self, scenario: VirtualScenario) -> List[Label]:
+        path = os.path.dirname(os.path.relpath(scenario.path))
         package = path.replace("/", ".")
 
         labels = [
@@ -116,20 +111,22 @@ class AllureReporterPlugin(Reporter):
             for label in self._config_labels:
                 labels.append(label)
 
-        tags = getattr(scenario_result.scenario._orig_scenario, "tags", ())
-        for tag in tags:
+        scenario_tags = self._get_scenario_tags(scenario)
+        for tag in scenario_tags:
             labels.append(Label(LabelType.TAG, tag))
 
-        scenario_labels = self._get_scenario_labels(scenario_result)
+        scenario_labels = self._get_scenario_labels(scenario)
         for label in scenario_labels:
             labels.append(Label(label.name, label.value))
 
         return labels
 
-    def _get_scenario_labels(self, scenario_result: ScenarioResult) -> Tuple[Label, ...]:
-        template = getattr(scenario_result.scenario._orig_scenario, "__vedro__template__", None)
-        scenario = template or scenario_result.scenario._orig_scenario
-        return getattr(scenario, "__vedro__allure_labels__", ())
+    def _get_scenario_tags(self, scenario: VirtualScenario) -> Tuple[str, ...]:
+        return getattr(scenario._orig_scenario, "tags", ())
+
+    def _get_scenario_labels(self, scenario: VirtualScenario) -> Tuple[Label, ...]:
+        template = getattr(scenario._orig_scenario, "__vedro__template__", None)
+        return getattr(template or scenario._orig_scenario, "__vedro__allure_labels__", ())
 
     def _create_attachment(self, name: str, mime_type: str, ext: str) -> AllureAttachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
@@ -155,7 +152,7 @@ class AllureReporterPlugin(Reporter):
 
         return attachment
 
-    def _add_attachments(self, test_result: Union[TestResult, TestStepResult],
+    def _add_attachments(self, result: Union[TestResult, TestStepResult],
                          artifacts: List[Artifact]) -> None:
         for artifact in artifacts:
             if isinstance(artifact, MemoryArtifact):
@@ -164,7 +161,7 @@ class AllureReporterPlugin(Reporter):
                 attachment = self._add_file_attachment(artifact)
             else:
                 raise ValueError(f"Unknown artifact type {type(artifact)}")
-            test_result.attachments.append(attachment)
+            result.attachments.append(attachment)
 
     def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
         res = ""
@@ -190,22 +187,29 @@ class AllureReporterPlugin(Reporter):
             attachment = self._add_memory_attachment(artifact)
             test_result.attachments.append(attachment)
 
+        for step_result in scenario_result.step_results:
+            test_step_result = self._create_test_step_result(step_result)
+            if step_result.exc_info:
+                message = format_exception(step_result.exc_info.type, step_result.exc_info.value)
+                trace = format_traceback(step_result.exc_info.traceback)
+                test_result.statusDetails = StatusDetails(message=message, trace=trace)
+            if self._attach_artifacts:
+                self._add_attachments(test_step_result, step_result.artifacts)
+            test_result.steps.append(test_step_result)
+
         self._plugin_manager.hook.report_result(result=test_result)
 
-    def _start_step(self, test_result: TestResult, step_result: StepResult) -> TestStepResult:
+    def _create_test_step_result(self, step_result: StepResult) -> TestStepResult:
         test_step_result = TestStepResult()
         test_step_result.uuid = utils.uuid4()
         test_step_result.name = step_result.step_name.replace("_", " ")
-        test_result.steps.append(test_step_result)
-        return test_step_result
-
-    def _stop_step(self, test_step_result: TestStepResult,
-                   step_result: StepResult, status: Status) -> None:
-        test_step_result.status = status
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())
-        if self._attach_artifacts:
-            self._add_attachments(test_step_result, step_result.artifacts)
+        if step_result.status == StepStatus.PASSED:
+            test_step_result.status = Status.PASSED
+        elif step_result.status == StepStatus.FAILED:
+            test_step_result.status = Status.FAILED
+        return test_step_result
 
     def on_scenario_run(self, event: ScenarioRunEvent) -> None:
         self._test_result = self._start_scenario(event.scenario_result)
@@ -222,22 +226,6 @@ class AllureReporterPlugin(Reporter):
 
     def on_scenario_passed(self, event: ScenarioPassedEvent) -> None:
         self._stop_scenario(self._test_result, event.scenario_result, Status.PASSED)
-
-    def on_step_run(self, event: StepRunEvent) -> None:
-        self._test_step_result = self._start_step(self._test_result, event.step_result)
-
-    def on_step_failed(self, event: StepFailedEvent) -> None:
-        self._stop_step(self._test_step_result, event.step_result, Status.FAILED)
-
-        exc_info = event.step_result.exc_info
-        if exc_info:
-            message = format_exception(exc_info.type, exc_info.value)
-            trace = format_traceback(exc_info.traceback)
-            details = StatusDetails(message=message, trace=trace)
-            cast(TestResult, self._test_result).statusDetails = details
-
-    def on_step_passed(self, event: StepPassedEvent) -> None:
-        self._stop_step(self._test_step_result, event.step_result, Status.PASSED)
 
 
 class AllureReporter(PluginConfig):
