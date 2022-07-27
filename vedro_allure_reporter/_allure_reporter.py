@@ -104,7 +104,6 @@ class AllureReporterPlugin(Reporter):
         labels = [
             Label(LabelType.FRAMEWORK, "vedro"),
             Label("package", package),
-            Label(LabelType.SUITE, "scenarios"),
         ]
         if self._labels:
             for label in self._labels:
