@@ -2,6 +2,11 @@
 
 ## v1.0
 
+### v1.6.0 (2022-09-04)
+
+- Add `project_name` config param [#8](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/8)
+- Fix `testCaseId` generation [#8](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/8)
+
 ### v1.5.0 (2022-07-25)
 
 - Fix postponed step attachment [#6](https://github.com/nikitanovosibirsk/vedro-allure-reporter/pull/6)
