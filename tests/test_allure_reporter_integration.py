@@ -38,7 +38,6 @@ def reporter(dispatcher: Dispatcher, logger: AllureMemoryLogger) -> AllureReport
     return reporter
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("make_result", [
     lambda: make_scenario_result().mark_passed(),
     lambda: make_scenario_result().mark_failed(),
@@ -68,7 +67,6 @@ async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
@@ -101,7 +99,6 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
@@ -140,7 +137,6 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
                                       logger: AllureMemoryLogger):
     with given:
@@ -169,7 +165,6 @@ async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: Direc
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin,
                              reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
     with given:
@@ -193,7 +188,6 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
                                            director: DirectorPlugin,
                                            reporter: AllureReporterPlugin,
@@ -225,7 +219,6 @@ async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
         assert list(logger.attachments.values()) == [artifact.data]
 
 
-@pytest.mark.asyncio
 async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispatcher,
                                            director: DirectorPlugin,
                                            reporter: AllureReporterPlugin,
@@ -259,7 +252,6 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
         assert list(logger.attachments.values()) == []  # not implemented in AllureMemoryLogger
 
 
-@pytest.mark.asyncio
 async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
                                reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
     with given:

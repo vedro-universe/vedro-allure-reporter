@@ -33,7 +33,6 @@ def reporter(dispatcher: Dispatcher,
     return reporter
 
 
-@pytest.mark.asyncio
 async def test_arg_parsed_event(*, dispatcher: Dispatcher,
                                 director: DirectorPlugin,
                                 reporter: AllureReporterPlugin,
@@ -60,7 +59,6 @@ async def test_arg_parsed_event(*, dispatcher: Dispatcher,
         ]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("make_result", [
     lambda: make_scenario_result().mark_passed(),
     lambda: make_scenario_result().mark_failed(),
@@ -88,7 +86,6 @@ async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
         assert logger_.mock_calls == []
 
 
-@pytest.mark.asyncio
 async def test_scenario_reported_unknown_status(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
