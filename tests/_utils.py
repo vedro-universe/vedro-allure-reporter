@@ -1,6 +1,9 @@
+import os
+import string
 from argparse import Namespace
 from contextlib import contextmanager
 from pathlib import Path
+from random import choice
 from typing import Any, Dict, List, Optional, Union
 from unittest.mock import Mock, patch
 from uuid import UUID, uuid4
@@ -20,7 +23,6 @@ from vedro.core import (
 )
 from vedro.events import ArgParseEvent, ConfigLoadedEvent
 from vedro.plugins.director import Director, DirectorPlugin
-from vedro.plugins.director.rich.test_utils import make_path, make_random_name
 
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
 
@@ -158,3 +160,11 @@ def create_attachment(artifact: Union[MemoryArtifact, FileArtifact],
                       attachment_uuid: UUID) -> Attachment:
     file_name = ATTACHMENT_PATTERN.format(prefix=attachment_uuid, ext="txt")
     return Attachment(name=artifact.name, source=file_name, type=artifact.mime_type)
+
+
+def make_random_name(length: int = 10) -> str:
+    return ''.join(choice(string.ascii_lowercase) for _ in range(length))
+
+
+def make_path(path: str = "", name: str = "scenario.py") -> Path:
+    return Path(os.getcwd()) / "scenarios" / path / name

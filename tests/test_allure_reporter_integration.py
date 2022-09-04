@@ -1,9 +1,10 @@
 from pathlib import Path
+from typing import Any, Optional
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
+from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, StepResult, VirtualStep
 from vedro.events import (
     ArgParsedEvent,
     ScenarioFailedEvent,
@@ -12,7 +13,6 @@ from vedro.events import (
     ScenarioSkippedEvent,
 )
 from vedro.plugins.director import DirectorPlugin
-from vedro.plugins.director.rich.test_utils import make_step_result
 
 import vedro_allure_reporter
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
@@ -24,6 +24,7 @@ from ._utils import (
     dispatcher,
     logger,
     make_parsed_args,
+    make_random_name,
     make_scenario_result,
     make_test_case,
     patch_uuid,
@@ -38,6 +39,21 @@ def reporter(dispatcher: Dispatcher, logger: AllureMemoryLogger) -> AllureReport
                                     logger_factory=lambda *args, **kwargs: logger)
     reporter.subscribe(dispatcher)
     return reporter
+
+
+def make_vstep(*, name: Optional[str] = None) -> VirtualStep:
+    def method(self: Any) -> None:
+        pass
+    if name:
+        method.__name__ = name
+    return VirtualStep(method)
+
+
+def make_step_result(vstep: Optional[VirtualStep] = None) -> StepResult:
+    if vstep is None:
+        vstep = make_vstep(name=make_random_name())
+    step_result = StepResult(vstep)
+    return step_result
 
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
