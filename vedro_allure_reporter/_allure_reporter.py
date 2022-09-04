@@ -1,6 +1,6 @@
 import json
 import os
-from base64 import b64encode
+from hashlib import blake2b
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
@@ -167,11 +167,8 @@ class AllureReporterPlugin(Reporter):
         return res
 
     def _get_scenario_unique_id(self, scenario: VirtualScenario) -> str:
-        unique_id = scenario.unique_id
-        if self._project_name:
-            project_name = b64encode(self._project_name.encode()).decode().strip("=")
-            unique_id = f"{project_name}_{unique_id}"
-        return unique_id
+        unique_id = f"{self._project_name}_{scenario.unique_id}"
+        return blake2b(unique_id.encode(), digest_size=32).hexdigest()
 
     def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
         test_result = TestResult()
@@ -222,9 +219,7 @@ class AllureReporterPlugin(Reporter):
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
 
-    # Set project name
-    # - Adds Label("project_name", <project_name>)
-    # - Adds prefix for testCaseId
+    # Set project name (adds label "project_name" and prefix for testCaseId)
     project_name: str = ""
 
     # Set directory for Allure reports

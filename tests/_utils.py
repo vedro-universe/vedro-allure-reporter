@@ -2,6 +2,7 @@ import os
 import string
 from argparse import Namespace
 from contextlib import contextmanager
+from hashlib import blake2b
 from pathlib import Path
 from random import choice
 from typing import Any, Dict, List, Optional, Union
@@ -115,6 +116,11 @@ def make_aggregated_result(scenario_result: Optional[ScenarioResult] = None) -> 
     return AggregatedResult.from_existing(scenario_result, [scenario_result])
 
 
+def get_scenario_unique_id(scenario: VirtualScenario, project_name: str = "") -> str:
+    unique_id = f"{project_name}_{scenario.unique_id}"
+    return blake2b(unique_id.encode(), digest_size=32).hexdigest()
+
+
 def make_test_case(uuid: str, scenario_result: ScenarioResult,
                    steps: Optional[List[StepResult]] = None,
                    labels: Optional[List[AllureLabel]] = None,
@@ -125,8 +131,8 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
         "status": scenario_result.status.value.lower(),
         "start": int(scenario_result.started_at * 1000),
         "stop": int(scenario_result.ended_at * 1000),
-        "historyId": scenario_result.scenario.unique_id,
-        "testCaseId": scenario_result.scenario.unique_id,
+        "historyId": get_scenario_unique_id(scenario_result.scenario),
+        "testCaseId": get_scenario_unique_id(scenario_result.scenario),
         "labels": [
             {"name": "framework", "value": "vedro"},
             {"name": "package", "value": "scenarios.namespace"},
