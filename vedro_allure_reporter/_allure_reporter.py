@@ -1,5 +1,6 @@
 import json
 import os
+from base64 import b64encode
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
@@ -40,6 +41,7 @@ class AllureReporterPlugin(Reporter):
         self._logger_factory = logger_factory
         self._logger: Union[AllureFileLogger, None] = None
         self._test_result: Union[TestResult, None] = None
+        self._project_name = config.project_name
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
@@ -96,6 +98,8 @@ class AllureReporterPlugin(Reporter):
             Label("package", package),
             Label(LabelType.SUITE, "scenarios"),
         ]
+        if self._project_name:
+            labels.append(Label("project_name", self._project_name))
         if self._config_labels:
             for label in self._config_labels:
                 labels.append(label)
@@ -162,12 +166,19 @@ class AllureReporterPlugin(Reporter):
             res += f"{indent * ' '}{key}:\n{val_repr}\n\n"
         return res
 
+    def _get_scenario_unique_id(self, scenario: VirtualScenario) -> str:
+        unique_id = scenario.unique_id
+        if self._project_name:
+            project_name = b64encode(self._project_name.encode()).decode().strip("=")
+            unique_id = f"{project_name}_{unique_id}"
+        return unique_id
+
     def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
         test_result = TestResult()
         test_result.uuid = utils.uuid4()
         test_result.name = scenario_result.scenario.subject
-        test_result.historyId = scenario_result.scenario.unique_id
-        test_result.testCaseId = scenario_result.scenario.unique_id
+        test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
+        test_result.testCaseId = self._get_scenario_unique_id(scenario_result.scenario)
         test_result.status = status
         test_result.start = self._to_seconds(scenario_result.started_at or time())
         test_result.stop = self._to_seconds(scenario_result.ended_at or time())
@@ -210,6 +221,11 @@ class AllureReporterPlugin(Reporter):
 
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
+
+    # Set project name
+    # - Adds Label("project_name", <project_name>)
+    # - Adds prefix for testCaseId
+    project_name: str = ""
 
     # Set directory for Allure reports
     report_dir: Path = Path("./allure_reports")
