@@ -1,17 +1,11 @@
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import Mock, call
 
 import pytest
 from baby_steps import given, then, when
-from vedro.core import Dispatcher
-from vedro.events import (
-    ArgParsedEvent,
-    ScenarioFailedEvent,
-    ScenarioPassedEvent,
-    ScenarioRunEvent,
-    ScenarioSkippedEvent,
-)
-from vedro.plugins.director import DirectorPlugin, Reporter
+from vedro.core import AggregatedResult, Dispatcher, ScenarioResult
+from vedro.events import ArgParsedEvent, ScenarioReportedEvent
+from vedro.plugins.director import DirectorPlugin
 
 from vedro_allure_reporter import AllureReporter, AllureReporterPlugin
 
@@ -39,15 +33,6 @@ def reporter(dispatcher: Dispatcher,
     return reporter
 
 
-def test_reporter():
-    with when:
-        reporter = AllureReporterPlugin(AllureReporter)
-
-    with then:
-        assert isinstance(reporter, Reporter)
-
-
-@pytest.mark.asyncio
 async def test_arg_parsed_event(*, dispatcher: Dispatcher,
                                 director: DirectorPlugin,
                                 reporter: AllureReporterPlugin,
@@ -74,71 +59,48 @@ async def test_arg_parsed_event(*, dispatcher: Dispatcher,
         ]
 
 
-@pytest.mark.asyncio
-async def test_scenario_skip_event(*, dispatcher: Dispatcher,
-                                   director: DirectorPlugin,
-                                   reporter: AllureReporterPlugin,
-                                   plugin_manager_: Mock,
-                                   logger_: Mock):
+@pytest.mark.parametrize("make_result", [
+    lambda: make_scenario_result().mark_passed(),
+    lambda: make_scenario_result().mark_failed(),
+    lambda: make_scenario_result().mark_skipped(),
+])
+async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
+                                 dispatcher: Dispatcher,
+                                 director: DirectorPlugin,
+                                 reporter: AllureReporterPlugin,
+                                 plugin_manager_: Mock,
+                                 logger_: Mock):
     with given:
         await choose_reporter(dispatcher, director, reporter)
 
-        scenario_result = make_scenario_result()
-        event = ScenarioSkippedEvent(scenario_result)
+        scenario_result = make_result()
+        aggregated_result = AggregatedResult.from_existing(scenario_result, [scenario_result])
+        event = ScenarioReportedEvent(aggregated_result)
 
     with when:
         await dispatcher.fire(event)
 
     with then:
-        assert plugin_manager_.mock_calls == [
-            # call.hook.report_result(result=reporter._test_result)
-        ]
+        assert plugin_manager_.hook.report_result.assert_called() is None
+        assert len(plugin_manager_.mock_calls) == 1
         assert logger_.mock_calls == []
 
 
-@pytest.mark.asyncio
-async def test_scenario_pass_event(*, dispatcher: Dispatcher,
-                                   director: DirectorPlugin,
-                                   reporter: AllureReporterPlugin,
-                                   plugin_manager_: Mock,
-                                   logger_: Mock):
+async def test_scenario_reported_unknown_status(*, dispatcher: Dispatcher,
+                                                director: DirectorPlugin,
+                                                reporter: AllureReporterPlugin,
+                                                plugin_manager_: Mock,
+                                                logger_: Mock):
     with given:
         await choose_reporter(dispatcher, director, reporter)
 
         scenario_result = make_scenario_result()
-        await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        event = ScenarioPassedEvent(scenario_result)
+        aggregated_result = AggregatedResult.from_existing(scenario_result, [scenario_result])
+        event = ScenarioReportedEvent(aggregated_result)
 
     with when:
         await dispatcher.fire(event)
 
     with then:
-        assert plugin_manager_.mock_calls == [
-            call.hook.report_result(result=reporter._test_result)
-        ]
-        assert logger_.mock_calls == []
-
-
-@pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher,
-                                     director: DirectorPlugin,
-                                     reporter: AllureReporterPlugin,
-                                     plugin_manager_: Mock,
-                                     logger_: Mock):
-    with given:
-        await choose_reporter(dispatcher, director, reporter)
-
-        scenario_result = make_scenario_result()
-        await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        event = ScenarioFailedEvent(scenario_result)
-
-    with when:
-        await dispatcher.fire(event)
-
-    with then:
-        assert plugin_manager_.mock_calls == [
-            call.hook.report_result(result=reporter._test_result)
-        ]
+        assert plugin_manager_.mock_calls == []
         assert logger_.mock_calls == []

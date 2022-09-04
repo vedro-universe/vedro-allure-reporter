@@ -76,7 +76,7 @@ class Config(vedro.Config):
             enabled = True
 
             labels = [
-                AllureLabel("project_name", "vedro-allure-reporter")
+                AllureLabel("custom", "value")
             ]
 ```
 

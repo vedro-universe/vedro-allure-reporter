@@ -1,18 +1,13 @@
 from pathlib import Path
+from typing import Callable
+from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
-from vedro.events import (
-    ArgParsedEvent,
-    ScenarioFailedEvent,
-    ScenarioPassedEvent,
-    ScenarioRunEvent,
-    ScenarioSkippedEvent,
-)
+from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, ScenarioResult
+from vedro.events import ScenarioReportedEvent
 from vedro.plugins.director import DirectorPlugin
-from vedro.plugins.director.rich.test_utils import make_step_result
 
 import vedro_allure_reporter
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
@@ -22,11 +17,14 @@ from ._utils import (
     create_attachment,
     director,
     dispatcher,
+    fire_arg_parsed_event,
     logger,
-    make_parsed_args,
+    make_aggregated_result,
     make_scenario_result,
+    make_step_result,
     make_test_case,
     patch_uuid,
+    patch_uuids,
 )
 
 __all__ = ("dispatcher", "director", "logger",)
@@ -40,54 +38,25 @@ def reporter(dispatcher: Dispatcher, logger: AllureMemoryLogger) -> AllureReport
     return reporter
 
 
-async def fire_arg_parsed_event(dispatcher: Dispatcher,
-                                report_dir: str = "allure_reports") -> None:
-    args = make_parsed_args(allure_report_dir=report_dir)
-    event = ArgParsedEvent(args)
-    await dispatcher.fire(event)
-
-
-@pytest.mark.asyncio
-async def test_scenario_skipped_event(*, dispatcher: Dispatcher,
-                                      director: DirectorPlugin,
-                                      reporter: AllureReporterPlugin,
-                                      logger: AllureMemoryLogger):
+@pytest.mark.parametrize("make_result", [
+    lambda: make_scenario_result().mark_passed(),
+    lambda: make_scenario_result().mark_failed(),
+    lambda: make_scenario_result().mark_skipped(),
+])
+async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
+                                 dispatcher: Dispatcher,
+                                 director: DirectorPlugin,
+                                 reporter: AllureReporterPlugin,
+                                 logger: AllureMemoryLogger):
     with given:
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        scenario_result = scenario_result.mark_skipped().set_started_at(1.0).set_ended_at(3.0)
-        event = ScenarioSkippedEvent(scenario_result)
+        scenario_result = make_result().set_started_at(1.0).set_ended_at(3.0)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-    with when, patch_uuid():
-        await dispatcher.fire(event)
-
-    with then:
-        assert logger.test_cases == [
-            # make_test_case(uuid, scenario_result)
-        ]
-        assert logger.test_containers == []
-        assert logger.attachments == {}
-
-
-@pytest.mark.asyncio
-async def test_scenario_passed_event(*, dispatcher: Dispatcher,
-                                     director: DirectorPlugin,
-                                     reporter: AllureReporterPlugin,
-                                     logger: AllureMemoryLogger):
-    with given:
-        await choose_reporter(dispatcher, director, reporter)
-        await fire_arg_parsed_event(dispatcher)
-
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        scenario_result = scenario_result.mark_passed().set_started_at(1.0).set_ended_at(3.0)
-        event = ScenarioPassedEvent(scenario_result)
-
-    with when:
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:
@@ -98,34 +67,6 @@ async def test_scenario_passed_event(*, dispatcher: Dispatcher,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
-async def test_scenario_failed_event(*, dispatcher: Dispatcher,
-                                     director: DirectorPlugin,
-                                     reporter: AllureReporterPlugin,
-                                     logger: AllureMemoryLogger):
-    with given:
-        await choose_reporter(dispatcher, director, reporter)
-        await fire_arg_parsed_event(dispatcher)
-
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        scenario_result = scenario_result.mark_failed().set_started_at(1.0).set_ended_at(3.0)
-        event = ScenarioFailedEvent(scenario_result)
-
-    with when:
-        await dispatcher.fire(event)
-
-    with then:
-        assert logger.test_cases == [
-            make_test_case(uuid, scenario_result)
-        ]
-        assert logger.test_containers == []
-        assert logger.attachments == {}
-
-
-@pytest.mark.asyncio
 async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
@@ -134,20 +75,18 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
         t = 1.0
+        scenario_result = make_scenario_result()
         step_result_passed = (make_step_result().mark_passed()
                                                 .set_started_at(t + 1)
                                                 .set_ended_at(t + 2))
         scenario_result.add_step_result(step_result_passed)
-
         scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
-        event = ScenarioPassedEvent(scenario_result)
 
-    with when:
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:
@@ -160,7 +99,6 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
@@ -169,11 +107,8 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
         t = 1.0
+        scenario_result = make_scenario_result()
         step_result_passed = (make_step_result().mark_passed()
                               .set_started_at(t + 1)
                               .set_ended_at(t + 2))
@@ -183,11 +118,12 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
                               .set_started_at(t + 3)
                               .set_ended_at(t + 4))
         scenario_result.add_step_result(step_result_failed)
-
         scenario_result = scenario_result.mark_failed().set_started_at(t).set_ended_at(t + 5)
-        event = ScenarioFailedEvent(scenario_result)
 
-    with when:
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:
@@ -201,7 +137,6 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
                                       logger: AllureMemoryLogger):
     with given:
@@ -212,17 +147,14 @@ async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: Direc
                                         logger_factory=lambda *args, **kwargs: logger)
         reporter.subscribe(dispatcher)
         await choose_reporter(dispatcher, director, reporter)
-
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+        scenario_result = make_scenario_result().mark_passed() \
+                                                .set_started_at(0.1).set_ended_at(0.2)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
-        event = ScenarioPassedEvent(scenario_result)
-
-    with when:
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:
@@ -233,7 +165,6 @@ async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: Direc
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin,
                              reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
     with given:
@@ -241,14 +172,12 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         await fire_arg_parsed_event(dispatcher)
 
         tags = ["API"]
-        scenario_result = make_scenario_result(tags=tags)
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+        scenario_result = make_scenario_result(tags=tags).mark_passed() \
+                                                         .set_started_at(0.1).set_ended_at(0.2)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
-        event = ScenarioPassedEvent(scenario_result)
-
-    with when:
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:
@@ -259,7 +188,6 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         assert logger.attachments == {}
 
 
-@pytest.mark.asyncio
 async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
                                            director: DirectorPlugin,
                                            reporter: AllureReporterPlugin,
@@ -268,17 +196,17 @@ async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        scenario_result = scenario_result.mark_passed().set_started_at(1.0).set_ended_at(3.0)
+        scenario_result = make_scenario_result().mark_passed() \
+                                                .set_started_at(1.0).set_ended_at(3.0)
         artifact = MemoryArtifact("log", "text/plain", b"<body>")
         scenario_result.attach(artifact)
 
-        event = ScenarioPassedEvent(scenario_result)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-    with when, patch_uuid() as attachment_uuid:
+        uuid, attachment_uuid = str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, attachment_uuid):
         await dispatcher.fire(event)
 
     with then:
@@ -291,7 +219,6 @@ async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
         assert list(logger.attachments.values()) == [artifact.data]
 
 
-@pytest.mark.asyncio
 async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispatcher,
                                            director: DirectorPlugin,
                                            reporter: AllureReporterPlugin,
@@ -300,19 +227,19 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_result = make_scenario_result()
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
-
-        scenario_result = scenario_result.mark_passed().set_started_at(1.0).set_ended_at(3.0)
+        scenario_result = make_scenario_result().mark_passed() \
+                                                .set_started_at(1.0).set_ended_at(3.0)
         path = tmp_path / "log.txt"
         path.write_bytes(b"<body>")
         artifact = FileArtifact("log", "text/plain", path)
         scenario_result.attach(artifact)
 
-        event = ScenarioPassedEvent(scenario_result)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-    with when, patch_uuid() as attachment_uuid:
+        uuid, attachment_uuid = str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, attachment_uuid):
         await dispatcher.fire(event)
 
     with then:
@@ -325,7 +252,6 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
         assert list(logger.attachments.values()) == []  # not implemented in AllureMemoryLogger
 
 
-@pytest.mark.asyncio
 async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
                                reporter: AllureReporterPlugin, logger: AllureMemoryLogger):
     with given:
@@ -333,14 +259,14 @@ async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlug
         await fire_arg_parsed_event(dispatcher)
 
         scenario_labels = [AllureLabel('name', 'value')]
-        scenario_result = make_scenario_result(labels=scenario_labels)
-        with patch_uuid() as uuid:
-            await dispatcher.fire(ScenarioRunEvent(scenario_result))
+        scenario_result = make_scenario_result(labels=scenario_labels).mark_passed() \
+                                                                      .set_started_at(0.1) \
+                                                                      .set_ended_at(0.2)
 
-        scenario_result = scenario_result.mark_passed().set_started_at(0.1).set_ended_at(0.2)
-        event = ScenarioPassedEvent(scenario_result)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
 
-    with when:
+    with when, patch_uuid() as uuid:
         await dispatcher.fire(event)
 
     with then:

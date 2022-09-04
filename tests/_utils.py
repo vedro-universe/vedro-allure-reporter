@@ -1,15 +1,20 @@
+import os
+import string
 from argparse import Namespace
 from contextlib import contextmanager
+from hashlib import blake2b
 from pathlib import Path
+from random import choice
 from typing import Any, Dict, List, Optional, Union
 from unittest.mock import Mock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from allure_commons.model2 import ATTACHMENT_PATTERN, Attachment
 from vedro import Config, Scenario
 from vedro.core import (
+    AggregatedResult,
     ArgumentParser,
     Dispatcher,
     FileArtifact,
@@ -17,16 +22,12 @@ from vedro.core import (
     ScenarioResult,
     StepResult,
     VirtualScenario,
+    VirtualStep,
 )
-from vedro.events import ArgParseEvent, ConfigLoadedEvent
+from vedro.events import ArgParsedEvent, ArgParseEvent, ConfigLoadedEvent
 from vedro.plugins.director import Director, DirectorPlugin
-from vedro.plugins.director.rich.test_utils import make_path, make_random_name
 
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
-
-__all__ = ("plugin_manager_", "logger_", "logger_factory_", "dispatcher", "director",
-           "make_parsed_args", "logger", "patch_uuid", "make_test_case", "make_scenario_result",
-           "choose_reporter", "create_attachment",)
 
 
 @pytest.fixture()
@@ -62,8 +63,7 @@ def logger() -> AllureMemoryLogger:
 
 
 def make_parsed_args(*, allure_report_dir: str, allure_attach_scope: bool = False) -> Namespace:
-    return Namespace(allure_report_dir=allure_report_dir,
-                     allure_attach_scope=allure_attach_scope)
+    return Namespace(allure_report_dir=allure_report_dir, allure_attach_scope=allure_attach_scope)
 
 
 @contextmanager
@@ -72,6 +72,12 @@ def patch_uuid(uuid: Optional[str] = None):
         uuid = str(uuid4())
     with patch("allure_commons.utils.uuid4", Mock(return_value=uuid)):
         yield uuid
+
+
+@contextmanager
+def patch_uuids(*uuids: str):
+    with patch("allure_commons.utils.uuid4", Mock(side_effect=uuids)):
+        yield uuids
 
 
 def make_vscenario(*,
@@ -104,6 +110,17 @@ def make_scenario_result(path: Optional[Path] = None,
     return ScenarioResult(vscenario)
 
 
+def make_aggregated_result(scenario_result: Optional[ScenarioResult] = None) -> AggregatedResult:
+    if scenario_result is None:
+        scenario_result = make_scenario_result()
+    return AggregatedResult.from_existing(scenario_result, [scenario_result])
+
+
+def get_scenario_unique_id(scenario: VirtualScenario, project_name: str = "") -> str:
+    unique_id = f"{project_name}_{scenario.unique_id}"
+    return blake2b(unique_id.encode(), digest_size=32).hexdigest()
+
+
 def make_test_case(uuid: str, scenario_result: ScenarioResult,
                    steps: Optional[List[StepResult]] = None,
                    labels: Optional[List[AllureLabel]] = None,
@@ -114,8 +131,8 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
         "status": scenario_result.status.value.lower(),
         "start": int(scenario_result.started_at * 1000),
         "stop": int(scenario_result.ended_at * 1000),
-        "historyId": scenario_result.scenario.unique_id,
-        "testCaseId": scenario_result.scenario.unique_id,
+        "historyId": get_scenario_unique_id(scenario_result.scenario),
+        "testCaseId": get_scenario_unique_id(scenario_result.scenario),
         "labels": [
             {"name": "framework", "value": "vedro"},
             {"name": "package", "value": "scenarios.namespace"},
@@ -155,6 +172,36 @@ async def choose_reporter(dispatcher: Dispatcher,
 
 
 def create_attachment(artifact: Union[MemoryArtifact, FileArtifact],
-                      attachment_uuid: UUID) -> Attachment:
+                      attachment_uuid: str) -> Attachment:
     file_name = ATTACHMENT_PATTERN.format(prefix=attachment_uuid, ext="txt")
     return Attachment(name=artifact.name, source=file_name, type=artifact.mime_type)
+
+
+def make_random_name(length: int = 10) -> str:
+    return ''.join(choice(string.ascii_lowercase) for _ in range(length))
+
+
+def make_path(path: str = "", name: str = "scenario.py") -> Path:
+    return Path(os.getcwd()) / "scenarios" / path / name
+
+
+def make_vstep(*, name: Optional[str] = None) -> VirtualStep:
+    def method(self: Any) -> None:
+        pass
+    if name:
+        method.__name__ = name
+    return VirtualStep(method)
+
+
+def make_step_result(vstep: Optional[VirtualStep] = None) -> StepResult:
+    if vstep is None:
+        vstep = make_vstep(name=make_random_name())
+    step_result = StepResult(vstep)
+    return step_result
+
+
+async def fire_arg_parsed_event(dispatcher: Dispatcher,
+                                report_dir: str = "allure_reports") -> None:
+    args = make_parsed_args(allure_report_dir=report_dir)
+    event = ArgParsedEvent(args)
+    await dispatcher.fire(event)

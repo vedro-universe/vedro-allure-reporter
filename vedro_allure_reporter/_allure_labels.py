@@ -1,8 +1,10 @@
-from typing import Any, Type
+from typing import Any, Callable, Type, TypeVar
 
 from allure_commons.model2 import Label as AllureLabel
 from allure_commons.types import LabelType
-from vedro._scenario import Scenario
+from vedro import Scenario
+
+__all__ = ("Epic", "Feature", "Story", "NamedLabel", "allure_labels")
 
 
 class NamedLabel(AllureLabel):  # type: ignore
@@ -28,10 +30,13 @@ class Story(NamedLabel):
     name = LabelType.STORY
 
 
-def allure_labels(*labels: AllureLabel) -> Any:
+T = TypeVar("T", bound=Type[Scenario])
+
+
+def allure_labels(*labels: AllureLabel) -> Callable[[T], T]:
     assert len(labels) > 0
 
-    def wrapped(scenario: Type[Scenario]) -> Type[Scenario]:
+    def wrapped(scenario: T) -> T:
         setattr(scenario, "__vedro__allure_labels__", labels)
         return scenario
     return wrapped
