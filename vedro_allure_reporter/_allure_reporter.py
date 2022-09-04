@@ -25,14 +25,7 @@ from vedro.core import (
     StepStatus,
     VirtualScenario,
 )
-from vedro.events import (
-    ArgParsedEvent,
-    ArgParseEvent,
-    ScenarioFailedEvent,
-    ScenarioPassedEvent,
-    ScenarioRunEvent,
-    ScenarioSkippedEvent,
-)
+from vedro.events import ArgParsedEvent, ArgParseEvent, ScenarioReportedEvent
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
 __all__ = ("AllureReporter", "AllureReporterPlugin",)
@@ -60,10 +53,7 @@ class AllureReporterPlugin(Reporter):
         assert isinstance(self._dispatcher, Dispatcher)
         self._dispatcher.listen(ArgParseEvent, self.on_arg_parse) \
                         .listen(ArgParsedEvent, self.on_arg_parsed) \
-                        .listen(ScenarioRunEvent, self.on_scenario_run) \
-                        .listen(ScenarioSkippedEvent, self.on_scenario_skipped) \
-                        .listen(ScenarioFailedEvent, self.on_scenario_failed) \
-                        .listen(ScenarioPassedEvent, self.on_scenario_passed)
+                        .listen(ScenarioReportedEvent, self.on_scenario_reported)
 
     def on_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
@@ -85,18 +75,17 @@ class AllureReporterPlugin(Reporter):
         self._logger = self._logger_factory(self._report_dir, clean=True)
         self._plugin_manager.register(self._logger)
 
+    def on_scenario_reported(self, event: ScenarioReportedEvent) -> None:
+        aggregated_result = event.aggregated_result
+        if aggregated_result.is_passed():
+            self._report_result(aggregated_result, Status.PASSED)
+        elif aggregated_result.is_failed():
+            self._report_result(aggregated_result, Status.FAILED)
+        elif aggregated_result.is_skipped():
+            self._report_result(aggregated_result, Status.SKIPPED)
+
     def _to_seconds(self, elapsed: float) -> int:
         return int(elapsed * 1000)
-
-    def _start_scenario(self, scenario_result: ScenarioResult) -> TestResult:
-        test_result = TestResult()
-        test_result.uuid = utils.uuid4()
-        test_result.name = scenario_result.scenario.subject
-        test_result.historyId = scenario_result.scenario.unique_id
-        test_result.testCaseId = scenario_result.scenario.unique_id
-        test_result.labels.extend(self._create_labels(scenario_result.scenario))
-
-        return test_result
 
     def _create_labels(self, scenario: VirtualScenario) -> List[Label]:
         path = os.path.dirname(os.path.relpath(scenario.path))
@@ -173,11 +162,18 @@ class AllureReporterPlugin(Reporter):
             res += f"{indent * ' '}{key}:\n{val_repr}\n\n"
         return res
 
-    def _stop_scenario(self, test_result: TestResult,
-                       scenario_result: ScenarioResult, status: Status) -> None:
+    def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
+        test_result = TestResult()
+        test_result.uuid = utils.uuid4()
+        test_result.name = scenario_result.scenario.subject
+        test_result.historyId = scenario_result.scenario.unique_id
+        test_result.testCaseId = scenario_result.scenario.unique_id
         test_result.status = status
         test_result.start = self._to_seconds(scenario_result.started_at or time())
         test_result.stop = self._to_seconds(scenario_result.ended_at or time())
+
+        test_result.labels.extend(self._create_labels(scenario_result.scenario))
+
         if self._attach_artifacts:
             self._add_attachments(test_result, scenario_result.artifacts)
 
@@ -210,22 +206,6 @@ class AllureReporterPlugin(Reporter):
         elif step_result.status == StepStatus.FAILED:
             test_step_result.status = Status.FAILED
         return test_step_result
-
-    def on_scenario_run(self, event: ScenarioRunEvent) -> None:
-        self._test_result = self._start_scenario(event.scenario_result)
-
-    def on_scenario_skipped(self, event: ScenarioRunEvent) -> None:
-        vscenario = event.scenario_result.scenario
-        skipped_by_user = getattr(vscenario._orig_scenario, "__vedro__skipped__", False)
-        if skipped_by_user:
-            self._test_result = self._start_scenario(event.scenario_result)
-            self._stop_scenario(self._test_result, event.scenario_result, Status.SKIPPED)
-
-    def on_scenario_failed(self, event: ScenarioFailedEvent) -> None:
-        self._stop_scenario(self._test_result, event.scenario_result, Status.FAILED)
-
-    def on_scenario_passed(self, event: ScenarioPassedEvent) -> None:
-        self._stop_scenario(self._test_result, event.scenario_result, Status.PASSED)
 
 
 class AllureReporter(PluginConfig):
