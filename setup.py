@@ -20,7 +20,7 @@ setup(
     author="Nikita Tsvetkov",
     author_email="nikitanovosibirsk@yandex.com",
     python_requires=">=3.7",
-    url="https://github.com/nikitanovosibirsk/vedro-allure-reporter",
+    url="https://github.com/vedro-universe/vedro-allure-reporter",
     license="Apache-2.0",
     packages=find_packages(exclude=("tests",)),
     package_data={"vedro_allure_reporter": ["py.typed"]},
