@@ -62,6 +62,8 @@ Docs — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
 
 ### Custom Global Labels
 
+Global labels will be added to each scenario
+
 ```python
 # ./vedro.cfg.py
 import vedro
@@ -81,6 +83,8 @@ class Config(vedro.Config):
 ```
 
 ### Custom Scenario Labels
+
+Scenario labels will be added to specific scenario
 
 ```python
 # ./scenarios/sign_up_user.py

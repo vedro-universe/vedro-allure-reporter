@@ -234,5 +234,5 @@ class AllureReporter(PluginConfig):
     # Attach artifacts to Allure report
     attach_artifacts: bool = True
 
-    # Add custom labels
+    # Add custom labels to each scenario
     labels: List[Label] = []
