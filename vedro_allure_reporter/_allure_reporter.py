@@ -119,7 +119,11 @@ class AllureReporterPlugin(Reporter):
 
     def _get_scenario_labels(self, scenario: VirtualScenario) -> Tuple[Label, ...]:
         template = getattr(scenario._orig_scenario, "__vedro__template__", None)
-        return getattr(template or scenario._orig_scenario, "__vedro__allure_labels__", ())
+
+        labels = getattr(template, "__vedro__allure_labels__", ())
+        labels += getattr(scenario._orig_scenario, "__vedro__allure_labels__", ())
+
+        return labels
 
     def _create_attachment(self, name: str, mime_type: str, ext: str) -> AllureAttachment:
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
