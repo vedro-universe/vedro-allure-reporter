@@ -1,6 +1,6 @@
 import os
 import string
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
 from hashlib import blake2b
 from pathlib import Path
@@ -15,7 +15,6 @@ from allure_commons.model2 import ATTACHMENT_PATTERN, Attachment
 from vedro import Config, Scenario
 from vedro.core import (
     AggregatedResult,
-    ArgumentParser,
     Dispatcher,
     FileArtifact,
     MemoryArtifact,
