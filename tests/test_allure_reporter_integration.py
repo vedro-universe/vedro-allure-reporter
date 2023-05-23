@@ -258,7 +258,7 @@ async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlug
         await choose_reporter(dispatcher, director, reporter)
         await fire_arg_parsed_event(dispatcher)
 
-        scenario_labels = [AllureLabel('name', 'value')]
+        scenario_labels = (AllureLabel('name', 'value'),)
         scenario_result = make_scenario_result(labels=scenario_labels).mark_passed() \
                                                                       .set_started_at(0.1) \
                                                                       .set_ended_at(0.2)
