@@ -13,7 +13,7 @@ def find_dev_required():
 
 setup(
     name="vedro-allure-reporter",
-    version="1.6.0",
+    version="1.7.0",
     description="Allure reporter for Vedro framework",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
