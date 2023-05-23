@@ -249,7 +249,7 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
             ])
         ]
         assert logger.test_containers == []
-        assert list(logger.attachments.values()) == []  # not implemented in AllureMemoryLogger
+        assert list(logger.attachments.values()) == [artifact.path]
 
 
 async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlugin,
