@@ -1,11 +1,11 @@
 import os
 import string
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
 from hashlib import blake2b
 from pathlib import Path
 from random import choice
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -15,7 +15,6 @@ from allure_commons.model2 import ATTACHMENT_PATTERN, Attachment
 from vedro import Config, Scenario
 from vedro.core import (
     AggregatedResult,
-    ArgumentParser,
     Dispatcher,
     FileArtifact,
     MemoryArtifact,
@@ -84,7 +83,7 @@ def make_vscenario(*,
                    path: Optional[Path] = None,
                    subject: Optional[str] = None,
                    tags: Optional[List[str]] = None,
-                   labels: Optional[List[AllureLabel]] = None) -> VirtualScenario:
+                   labels: Optional[Tuple[AllureLabel]] = None) -> VirtualScenario:
     namespace = {}
     if path is not None:
         namespace["__file__"] = str(path)
@@ -101,7 +100,7 @@ def make_vscenario(*,
 def make_scenario_result(path: Optional[Path] = None,
                          subject: Optional[str] = None,
                          tags: Optional[List[str]] = None,
-                         labels: Optional[List[AllureLabel]] = None) -> ScenarioResult:
+                         labels: Optional[Tuple[AllureLabel]] = None) -> ScenarioResult:
     if path is None:
         path = make_path("namespace")
     if subject is None:
@@ -123,7 +122,7 @@ def get_scenario_unique_id(scenario: VirtualScenario, project_name: str = "") ->
 
 def make_test_case(uuid: str, scenario_result: ScenarioResult,
                    steps: Optional[List[StepResult]] = None,
-                   labels: Optional[List[AllureLabel]] = None,
+                   labels: Optional[Tuple[AllureLabel]] = None,
                    attachments: Optional[List[Attachment]] = None) -> Dict[str, Any]:
     test_case = {
         "uuid": uuid,
