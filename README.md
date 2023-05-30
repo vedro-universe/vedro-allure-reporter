@@ -1,11 +1,11 @@
 # Vedro Allure Reporter
 
-[![Codecov](https://img.shields.io/codecov/c/github/nikitanovosibirsk/vedro-allure-reporter/master.svg?style=flat-square)](https://codecov.io/gh/nikitanovosibirsk/vedro-allure-reporter)
+[![Codecov](https://img.shields.io/codecov/c/github/vedro-universe/vedro-allure-reporter/master.svg?style=flat-square)](https://codecov.io/gh/vedro-universe/vedro-allure-reporter)
 [![PyPI](https://img.shields.io/pypi/v/vedro-allure-reporter.svg?style=flat-square)](https://pypi.python.org/pypi/vedro-allure-reporter/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/vedro-allure-reporter?style=flat-square)](https://pypi.python.org/pypi/vedro-allure-reporter/)
 [![Python Version](https://img.shields.io/pypi/pyversions/vedro-allure-reporter.svg?style=flat-square)](https://pypi.python.org/pypi/vedro-allure-reporter/)
 
-[Allure](https://docs.qameta.io/allure/) reporter for [Vedro](https://vedro.io/) framework
+[Allure](https://docs.qameta.io/allure/) reporter for the [Vedro](https://vedro.io/) testing framework.
 
 ## Installation
 
