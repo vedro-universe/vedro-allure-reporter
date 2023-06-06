@@ -5,94 +5,71 @@
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/vedro-allure-reporter?style=flat-square)](https://pypi.python.org/pypi/vedro-allure-reporter/)
 [![Python Version](https://img.shields.io/pypi/pyversions/vedro-allure-reporter.svg?style=flat-square)](https://pypi.python.org/pypi/vedro-allure-reporter/)
 
-[Allure](https://docs.qameta.io/allure/) reporter for the [Vedro](https://vedro.io/) testing framework.
+[Allure](https://docs.qameta.io/allure/) reporter for [Vedro](https://vedro.io/) testing framework.
 
 ## Installation
 
-### 1. Install package
+<details open>
+<summary>Quick</summary>
+<p>
+
+For a quick installation, you can use a plugin manager as follows:
+
+```shell
+$ vedro plugin install vedro-allure-reporter
+```
+
+</p>
+</details>
+
+<details>
+<summary>Manual</summary>
+<p>
+
+To install manually, follow these steps:
+
+1. Install the package using pip:
 
 ```shell
 $ pip3 install vedro-allure-reporter
 ```
 
-### 2. Enable plugin
+2. Next, activate the plugin in your `vedro.cfg.py` configuration file:
 
 ```python
 # ./vedro.cfg.py
 import vedro
-import vedro_allure_reporter as allure_reporter
+import vedro_allure_reporter
 
 class Config(vedro.Config):
 
     class Plugins(vedro.Config.Plugins):
 
-        class AllureReporter(allure_reporter.AllureReporter):
+        class AllureReporter(vedro_allure_reporter.AllureReporter):
             enabled = True
 ```
 
+</p>
+</details>
+
 ## Usage
 
-### Run tests
+To run tests with the Allure reporter, use the following command:
 
 ```shell
-$ vedro run -r allure --allure-report-dir ./allure_reports
+$ vedro run -r rich allure
 ```
 
-### Generate report via [Allure command-line tool](https://docs.qameta.io/allure/#_installing_a_commandline)
+This command executes your tests and saves the report data in the `./allure_reports` directory.
+
+To generate a report from the saved data, use the [Allure command-line tool](https://docs.qameta.io/allure/#_installing_a_commandline) as follows:
 
 ```shell
 $ allure serve ./allure_reports
 ```
 
-### Upload report to [Allure TestOps](https://docs.qameta.io/allure-testops/)
+This command will serve up the report ([demo](https://allure-framework.github.io/allure-demo/5/)).
 
-```shell
-$ export ALLURE_ENDPOINT=<endpoint>
-$ export ALLURE_PROJECT_ID=<project_id>
-$ export ALLURE_TOKEN=<token>
+---
 
-$ export LAUNCH_ID=`allurectl launch create --launch-name test --no-header --format ID | tail -n1`
-$ allurectl upload ./allure_reports --launch-id $LAUNCH_ID
-$ allurectl launch close $LAUNCH_ID
-```
-
-Docs — https://docs.qameta.io/allure-testops/quickstart/qa-auto/
-
-## Documentation
-
-### Custom Global Labels
-
-Global labels will be added to each scenario
-
-```python
-# ./vedro.cfg.py
-import vedro
-import vedro_allure_reporter as allure_reporter
-from vedro_allure_reporter import AllureLabel
-
-class Config(vedro.Config):
-
-    class Plugins(vedro.Config.Plugins):
-
-        class AllureReporter(allure_reporter.AllureReporter):
-            enabled = True
-
-            labels = [
-                AllureLabel("custom", "value")
-            ]
-```
-
-### Custom Scenario Labels
-
-Scenario labels will be added to specific scenario
-
-```python
-# ./scenarios/sign_up_user.py
-import vedro
-from vedro_allure_reporter import allure_labels, Story, AllureLabel
-
-@allure_labels(Story("Sign Up"), AllureLabel("custom", "value"))
-class Scenario(vedro.Scenario):
-    subject = "sign up user via email"
-
-```
+Explore more at https://vedro.io/en/docs/integrations/allure-reporter
