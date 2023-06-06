@@ -2,6 +2,14 @@
 
 ## v1.0
 
+### v1.7.1 (2023-06-06)
+
+- Update requirements and README [#11](https://github.com/vedro-universe/vedro-allure-reporter/pull/11)
+
+### v1.7.0 (2023-05-23)
+
+- Support labels for parametrized scenarios [#10](https://github.com/vedro-universe/vedro-allure-reporter/pull/10)
+
 ### v1.6.0 (2022-09-04)
 
 - Add `project_name` config param [#8](https://github.com/vedro-universe/vedro-allure-reporter/pull/8)
