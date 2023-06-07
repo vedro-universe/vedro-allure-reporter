@@ -72,4 +72,4 @@ This command will serve up the report ([demo](https://allure-framework.github.io
 
 ---
 
-Explore more at https://vedro.io/en/docs/integrations/allure-reporter
+Explore more at https://vedro.io/docs/integrations/allure-reporter

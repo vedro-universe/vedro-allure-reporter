@@ -22,7 +22,7 @@ setup(
     python_requires=">=3.7",
     url="https://github.com/vedro-universe/vedro-allure-reporter",
     project_urls={
-        "Docs": "https://vedro.io/en/docs/integrations/allure-reporter",
+        "Docs": "https://vedro.io/docs/integrations/allure-reporter",
         "GitHub": "https://github.com/vedro-universe/vedro-allure-reporter",
     },
     license="Apache-2.0",
