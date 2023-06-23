@@ -6,8 +6,9 @@ import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
 from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, ScenarioResult
-from vedro.events import ScenarioReportedEvent
+from vedro.events import ScenarioReportedEvent, ArgParsedEvent, StartupEvent
 from vedro.plugins.director import DirectorPlugin
+from vedro.core import MonotonicScenarioScheduler as Scheduler
 
 import vedro_allure_reporter
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
@@ -24,7 +25,7 @@ from ._utils import (
     make_step_result,
     make_test_case,
     patch_uuid,
-    patch_uuids,
+    patch_uuids, make_parsed_args, make_vscenario,
 )
 
 __all__ = ("dispatcher", "director", "logger",)
@@ -275,3 +276,113 @@ async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlug
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
+
+
+async def test_arg_parsed_event_allure_labels(*, dispatcher: Dispatcher,
+                                              director: DirectorPlugin,
+                                              reporter: AllureReporterPlugin):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+
+        labels = "key1=value1,key2=value2"
+        report_dir = "allure_reports"
+        args = make_parsed_args(allure_labels=labels, allure_report_dir=report_dir)
+        event = ArgParsedEvent(args)
+
+    with when:
+        await dispatcher.fire(event)
+
+    with then:
+        assert reporter._allure_labels == labels
+
+
+async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,
+                                                      director: DirectorPlugin,
+                                                      reporter: AllureReporterPlugin,
+                                                      logger: AllureMemoryLogger):
+    with given:
+        labels = [
+            (AllureLabel('label1', 'value1'),),
+            (AllureLabel('label2', 'value2'),)
+        ]
+        scenarios = [make_vscenario(labels=labels[0]), make_vscenario(labels=labels[1])]
+        scheduler = Scheduler(scenarios)
+
+        await fire_arg_parsed_event(dispatcher, labels=[])
+
+        startup_event = StartupEvent(scheduler)
+
+    with when:
+        await dispatcher.fire(startup_event)
+
+    with then:
+        assert list(scheduler.scheduled) == []
+
+
+async def test_nonexisting_label_to_run(*, dispatcher: Dispatcher,
+                                                      director: DirectorPlugin,
+                                                      reporter: AllureReporterPlugin,
+                                                      logger: AllureMemoryLogger):
+    with given:
+        labels = [
+            (AllureLabel('label1', 'value1'),),
+            (AllureLabel('label2', 'value2'),),
+        ]
+        scenarios = [make_vscenario(labels=labels[0]), make_vscenario(labels=labels[1])]
+        scheduler = Scheduler(scenarios)
+
+        await fire_arg_parsed_event(dispatcher, labels=['label3=value3'])
+
+        startup_event = StartupEvent(scheduler)
+
+    with when:
+        await dispatcher.fire(startup_event)
+
+    with then:
+        assert list(scheduler.scheduled) == []
+
+
+async def test_multiple_labels(*, dispatcher: Dispatcher,
+                                                      director: DirectorPlugin,
+                                                      reporter: AllureReporterPlugin,
+                                                      logger: AllureMemoryLogger):
+    with given:
+        labels = [
+            (AllureLabel('label1', 'value1'),),
+            (AllureLabel('label2', 'value2'),)
+        ]
+        scenarios = [make_vscenario(labels=labels[0]), make_vscenario(labels=labels[1])]
+        scheduler = Scheduler(scenarios)
+
+        await fire_arg_parsed_event(dispatcher, labels=['label1=value1', 'label2=value2'])
+
+        startup_event = StartupEvent(scheduler)
+
+    with when:
+        await dispatcher.fire(startup_event)
+
+    with then:
+        assert list(scheduler.scheduled) == scenarios
+
+
+async def test_multiple_labels_in_one_test(*, dispatcher: Dispatcher,
+                                                      director: DirectorPlugin,
+                                                      reporter: AllureReporterPlugin,
+                                                      logger: AllureMemoryLogger):
+    with given:
+        labels = [
+            (AllureLabel('label1', 'value1'), AllureLabel('label2', 'value2')),
+            (AllureLabel('label3', 'value3'),)
+        ]
+        scenarios = [make_vscenario(labels=labels[0]), make_vscenario(labels=labels[1])]
+        scheduler = Scheduler(scenarios)
+
+        await fire_arg_parsed_event(dispatcher, labels=['label1=value1'])
+
+        startup_event = StartupEvent(scheduler)
+
+    with when:
+        await dispatcher.fire(startup_event)
+
+    with then:
+        assert list(scheduler.scheduled) == [scenarios[0]]

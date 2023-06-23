@@ -1,5 +1,6 @@
 import os
 import string
+import uuid
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
 from hashlib import blake2b
@@ -61,8 +62,14 @@ def logger() -> AllureMemoryLogger:
     return AllureMemoryLogger()
 
 
-def make_parsed_args(*, allure_report_dir: str, allure_attach_scope: bool = False) -> Namespace:
-    return Namespace(allure_report_dir=allure_report_dir, allure_attach_scope=allure_attach_scope)
+def make_parsed_args(*,
+                     allure_report_dir: str,
+                     allure_attach_scope: bool = False,
+                     allure_labels: Optional[list] = None) -> Namespace:
+
+    return Namespace(allure_report_dir=allure_report_dir,
+                     allure_attach_scope=allure_attach_scope,
+                     allure_labels=allure_labels)
 
 
 @contextmanager
@@ -87,6 +94,8 @@ def make_vscenario(*,
     namespace = {}
     if path is not None:
         namespace["__file__"] = str(path)
+    else:
+        namespace["__file__"] = Path(os.getcwd()+ f'/{uuid.uuid4()}')
     if subject is not None:
         namespace["subject"] = subject
     if tags is not None:
@@ -200,7 +209,8 @@ def make_step_result(vstep: Optional[VirtualStep] = None) -> StepResult:
 
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
-                                report_dir: str = "allure_reports") -> None:
-    args = make_parsed_args(allure_report_dir=report_dir)
+                                report_dir: str = "allure_reports",
+                                labels: Optional[list] = None) -> None:
+    args = make_parsed_args(allure_report_dir=report_dir, allure_labels=labels)
     event = ArgParsedEvent(args)
     await dispatcher.fire(event)
