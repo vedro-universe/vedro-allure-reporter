@@ -44,7 +44,6 @@ class AllureReporterPlugin(Reporter):
         self._project_name = config.project_name
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
-        self._allure_labels = config.allure_labels
         self._attach_artifacts = config.attach_artifacts
         self._config_labels = config.labels
 
@@ -55,13 +54,13 @@ class AllureReporterPlugin(Reporter):
         labels = set()
         for label_str in self._allure_labels:
             name, value = label_str.split("=")
-            label = (name, value)
+            label = (name.lower(), value)
             labels.add(label)
 
         async for scenario in event.scheduler:
-            scenario_labels = set([(label.name, label.value)
+            scenario_labels = set([(label.name.lower(), label.value)
                                    for label in self._get_scenario_labels(scenario)])
-            if labels.isdisjoint(scenario_labels):
+            if not labels.issubset(scenario_labels):
                 event.scheduler.ignore(scenario)
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
@@ -92,8 +91,8 @@ class AllureReporterPlugin(Reporter):
     def on_subscribe_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
         group.add_argument("--allure-labels",
-                           default=[],
-                           nargs="*",
+                           default=None,
+                           nargs="+",
                            help="Run tests with specific Allure labels")
 
     def on_choosen_arg_parsed(self, event: ArgParsedEvent) -> None:
@@ -250,6 +249,10 @@ class AllureReporterPlugin(Reporter):
             test_step_result.status = Status.FAILED
         return test_step_result
 
+    @property
+    def allure_labels_to_run(self) -> Any:
+        return self._allure_labels
+
 
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
@@ -271,6 +274,3 @@ class AllureReporter(PluginConfig):
 
     # Add custom labels to each scenario
     labels: List[Label] = []
-
-    # Run tests by specific allure label
-    allure_labels: List[str] = []

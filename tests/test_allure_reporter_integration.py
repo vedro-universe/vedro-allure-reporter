@@ -5,10 +5,11 @@ from uuid import uuid4
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, FileArtifact, MemoryArtifact, ScenarioResult
-from vedro.events import ScenarioReportedEvent, ArgParsedEvent, StartupEvent
-from vedro.plugins.director import DirectorPlugin
+from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
 from vedro.core import MonotonicScenarioScheduler as Scheduler
+from vedro.core import ScenarioResult
+from vedro.events import ArgParsedEvent, ScenarioReportedEvent, StartupEvent
+from vedro.plugins.director import DirectorPlugin
 
 import vedro_allure_reporter
 from vedro_allure_reporter import AllureLabel, AllureReporterPlugin
@@ -21,11 +22,13 @@ from ._utils import (
     fire_arg_parsed_event,
     logger,
     make_aggregated_result,
+    make_parsed_args,
     make_scenario_result,
     make_step_result,
     make_test_case,
+    make_vscenario,
     patch_uuid,
-    patch_uuids, make_parsed_args, make_vscenario,
+    patch_uuids,
 )
 
 __all__ = ("dispatcher", "director", "logger",)
@@ -293,7 +296,7 @@ async def test_arg_parsed_event_allure_labels(*, dispatcher: Dispatcher,
         await dispatcher.fire(event)
 
     with then:
-        assert reporter._allure_labels == labels
+        assert reporter.allure_labels_to_run == labels
 
 
 async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,
@@ -316,7 +319,7 @@ async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,
         await dispatcher.fire(startup_event)
 
     with then:
-        assert list(scheduler.scheduled) == []
+        assert list(scheduler.scheduled) == scenarios
 
 
 async def test_nonexisting_label_to_run(*, dispatcher: Dispatcher,
@@ -362,7 +365,7 @@ async def test_multiple_labels(*, dispatcher: Dispatcher,
         await dispatcher.fire(startup_event)
 
     with then:
-        assert list(scheduler.scheduled) == scenarios
+        assert list(scheduler.scheduled) == []
 
 
 async def test_multiple_labels_in_one_test(*, dispatcher: Dispatcher,
@@ -386,3 +389,25 @@ async def test_multiple_labels_in_one_test(*, dispatcher: Dispatcher,
 
     with then:
         assert list(scheduler.scheduled) == [scenarios[0]]
+
+
+async def test_labels_name_case_insensitive(*, dispatcher: Dispatcher,
+                                            director: DirectorPlugin,
+                                            reporter: AllureReporterPlugin,
+                                            logger: AllureMemoryLogger):
+    with given:
+        labels = [
+            (AllureLabel('lAbEl', 'value'),),
+        ]
+        scenarios = [make_vscenario(labels=labels[0])]
+        scheduler = Scheduler(scenarios)
+
+        await fire_arg_parsed_event(dispatcher, labels=['LaBeL=value'])
+
+        startup_event = StartupEvent(scheduler)
+
+    with when:
+        await dispatcher.fire(startup_event)
+
+    with then:
+        assert list(scheduler.scheduled) == scenarios
