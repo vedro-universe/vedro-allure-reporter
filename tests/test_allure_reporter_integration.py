@@ -297,9 +297,9 @@ async def test_arg_parsed_event_allure_labels(*, dispatcher: Dispatcher,
 
 
 async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,
-                                                      director: DirectorPlugin,
-                                                      reporter: AllureReporterPlugin,
-                                                      logger: AllureMemoryLogger):
+                                       director: DirectorPlugin,
+                                       reporter: AllureReporterPlugin,
+                                       logger: AllureMemoryLogger):
     with given:
         labels = [
             (AllureLabel('label1', 'value1'),),
@@ -320,9 +320,9 @@ async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,
 
 
 async def test_nonexisting_label_to_run(*, dispatcher: Dispatcher,
-                                                      director: DirectorPlugin,
-                                                      reporter: AllureReporterPlugin,
-                                                      logger: AllureMemoryLogger):
+                                        director: DirectorPlugin,
+                                        reporter: AllureReporterPlugin,
+                                        logger: AllureMemoryLogger):
     with given:
         labels = [
             (AllureLabel('label1', 'value1'),),
@@ -343,9 +343,9 @@ async def test_nonexisting_label_to_run(*, dispatcher: Dispatcher,
 
 
 async def test_multiple_labels(*, dispatcher: Dispatcher,
-                                                      director: DirectorPlugin,
-                                                      reporter: AllureReporterPlugin,
-                                                      logger: AllureMemoryLogger):
+                               director: DirectorPlugin,
+                               reporter: AllureReporterPlugin,
+                               logger: AllureMemoryLogger):
     with given:
         labels = [
             (AllureLabel('label1', 'value1'),),
@@ -366,9 +366,9 @@ async def test_multiple_labels(*, dispatcher: Dispatcher,
 
 
 async def test_multiple_labels_in_one_test(*, dispatcher: Dispatcher,
-                                                      director: DirectorPlugin,
-                                                      reporter: AllureReporterPlugin,
-                                                      logger: AllureMemoryLogger):
+                                           director: DirectorPlugin,
+                                           reporter: AllureReporterPlugin,
+                                           logger: AllureMemoryLogger):
     with given:
         labels = [
             (AllureLabel('label1', 'value1'), AllureLabel('label2', 'value2')),

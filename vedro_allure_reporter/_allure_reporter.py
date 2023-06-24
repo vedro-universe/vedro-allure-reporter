@@ -59,7 +59,8 @@ class AllureReporterPlugin(Reporter):
             labels.add(label)
 
         async for scenario in event.scheduler:
-            scenario_labels = set([(label.name, label.value) for label in self._get_scenario_labels(scenario)])
+            scenario_labels = set([(label.name, label.value)
+                                   for label in self._get_scenario_labels(scenario)])
             if labels.isdisjoint(scenario_labels):
                 event.scheduler.ignore(scenario)
 
@@ -272,4 +273,4 @@ class AllureReporter(PluginConfig):
     labels: List[Label] = []
 
     # Run tests by specific allure label
-    allure_labels: [List[str]] = []
+    allure_labels: List[str] = []

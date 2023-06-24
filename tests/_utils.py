@@ -95,7 +95,7 @@ def make_vscenario(*,
     if path is not None:
         namespace["__file__"] = str(path)
     else:
-        namespace["__file__"] = Path(os.getcwd()+ f'/{uuid.uuid4()}')
+        namespace["__file__"] = Path(os.getcwd() + f'/{uuid.uuid4()}')
     if subject is not None:
         namespace["subject"] = subject
     if tags is not None:
