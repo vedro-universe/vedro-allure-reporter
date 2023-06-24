@@ -2,6 +2,10 @@
 
 ## v1.0
 
+### v1.8 (2023-06-24)
+
+- Add --allure-labels arg [#9](https://github.com/vedro-universe/vedro-allure-reporter/pull/9)
+
 ### v1.7.1 (2023-06-06)
 
 - Update requirements and README [#11](https://github.com/vedro-universe/vedro-allure-reporter/pull/11)
