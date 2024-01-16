@@ -4,6 +4,7 @@ from hashlib import blake2b
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
+from traceback import format_exception
 from typing import Any, Dict, List, Tuple, Type, Union
 
 import allure_commons.utils as utils
@@ -14,7 +15,6 @@ from allure_commons.model2 import ATTACHMENT_PATTERN
 from allure_commons.model2 import Attachment as AllureAttachment
 from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
 from allure_commons.types import LabelType
-from allure_commons.utils import format_exception, format_traceback
 from vedro.core import (
     Artifact,
     Dispatcher,
@@ -228,8 +228,10 @@ class AllureReporterPlugin(Reporter):
         for step_result in scenario_result.step_results:
             test_step_result = self._create_test_step_result(step_result)
             if step_result.exc_info:
-                message = format_exception(step_result.exc_info.type, step_result.exc_info.value)
-                trace = format_traceback(step_result.exc_info.traceback)
+                exc_info = step_result.exc_info
+                message = str(exc_info.value)
+                traceback = exc_info.traceback
+                trace = "".join(format_exception(exc_info.type, exc_info.value, traceback))
                 test_result.statusDetails = StatusDetails(message=message, trace=trace)
             if self._attach_artifacts:
                 self._add_attachments(test_step_result, step_result.artifacts)
