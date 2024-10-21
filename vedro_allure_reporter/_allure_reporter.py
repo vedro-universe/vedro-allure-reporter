@@ -72,11 +72,11 @@ class AllureReporterPlugin(Reporter):
 
     def on_chosen(self) -> None:
         assert isinstance(self._dispatcher, Dispatcher)
-        self._dispatcher.listen(ArgParseEvent, self.on_choosen_arg_parse) \
-                        .listen(ArgParsedEvent, self.on_choosen_arg_parsed) \
+        self._dispatcher.listen(ArgParseEvent, self.on_chosen_arg_parse) \
+                        .listen(ArgParsedEvent, self.on_chosen_arg_parsed) \
                         .listen(ScenarioReportedEvent, self.on_scenario_reported)
 
-    def on_choosen_arg_parse(self, event: ArgParseEvent) -> None:
+    def on_chosen_arg_parse(self, event: ArgParseEvent) -> None:
         group = event.arg_parser.add_argument_group("Allure Reporter")
 
         group.add_argument("--allure-report-dir",
@@ -95,7 +95,7 @@ class AllureReporterPlugin(Reporter):
                            nargs="+",
                            help="Run tests with specific Allure labels")
 
-    def on_choosen_arg_parsed(self, event: ArgParsedEvent) -> None:
+    def on_chosen_arg_parsed(self, event: ArgParsedEvent) -> None:
         self._report_dir = event.args.allure_report_dir
         self._attach_scope = event.args.allure_attach_scope
         self._allure_labels = event.args.allure_labels
