@@ -46,6 +46,8 @@ class AllureReporterPlugin(Reporter):
         self._attach_scope = config.attach_scope
         self._attach_artifacts = config.attach_artifacts
         self._config_labels = config.labels
+        self._clean_report_dir = config.clean_report_dir
+        self._allure_labels: Union[str, None] = None
 
     async def on_startup(self, event: StartupEvent) -> None:
         if self._allure_labels is None:
@@ -101,7 +103,7 @@ class AllureReporterPlugin(Reporter):
         self._allure_labels = event.args.allure_labels
 
         self._plugin_manager.register(self)
-        self._logger = self._logger_factory(self._report_dir, clean=True)
+        self._logger = self._logger_factory(self._report_dir, clean=self._clean_report_dir)
         self._plugin_manager.register(self._logger)
 
     def on_subscribe_arg_parsed(self, event: ArgParsedEvent) -> None:
@@ -273,6 +275,9 @@ class AllureReporter(PluginConfig):
 
     # Attach artifacts to Allure report
     attach_artifacts: bool = True
+
+    # Clean the report directory before generating new reports
+    clean_report_dir: bool = True  # Added configuration parameter
 
     # Add custom labels to each scenario
     labels: List[Label] = []
