@@ -2,6 +2,10 @@
 
 ## v1.0
 
+### v1.9 (2024-10-21)
+
+- Add configuration for cleaning report directory
+
 ### v1.8 (2023-06-24)
 
 - Add --allure-labels arg [#9](https://github.com/vedro-universe/vedro-allure-reporter/pull/9)
