@@ -33,9 +33,23 @@ __all__ = ("AllureReporter", "AllureReporterPlugin",)
 
 
 class AllureReporterPlugin(Reporter):
+    """
+    Integrates Allure reporting.
+
+    This plugin generates Allure-compatible test reports. It handles attaching artifacts
+    and scope data, configuring Allure settings, and filtering scenarios based on labels.
+    """
+
     def __init__(self, config: Type["AllureReporter"], *,
                  plugin_manager: MetaPluginManager = plugin_manager,
                  logger_factory: Any = AllureFileLogger) -> None:
+        """
+        Initialize the AllureReporterPlugin instance with configuration settings.
+
+        :param config: Configuration class for Allure reporting.
+        :param plugin_manager: Plugin manager for managing Allure plugins.
+        :param logger_factory: Factory method for creating the AllureFileLogger instance.
+        """
         super().__init__(config)
         self._plugin_manager = plugin_manager
         self._logger_factory = logger_factory
@@ -50,6 +64,11 @@ class AllureReporterPlugin(Reporter):
         self._allure_labels: Union[str, None] = None
 
     async def on_startup(self, event: StartupEvent) -> None:
+        """
+        Handle the startup event and filter scenarios based on Allure labels.
+
+        :param event: The startup event from Vedro's lifecycle.
+        """
         if self._allure_labels is None:
             return
 
@@ -66,6 +85,11 @@ class AllureReporterPlugin(Reporter):
                 event.scheduler.ignore(scenario)
 
     def subscribe(self, dispatcher: Dispatcher) -> None:
+        """
+        Subscribe to relevant Vedro events and register the reporter with the dispatcher.
+
+        :param dispatcher: The dispatcher used to listen to Vedro events.
+        """
         super().subscribe(dispatcher)
         dispatcher.listen(DirectorInitEvent, lambda e: e.director.register("allure", self))
         dispatcher.listen(ArgParseEvent, self.on_subscribe_arg_parse)
@@ -73,12 +97,21 @@ class AllureReporterPlugin(Reporter):
         dispatcher.listen(StartupEvent, self.on_startup)
 
     def on_chosen(self) -> None:
+        """
+        Handle the reporter being chosen and set up event listeners for ArgParse
+        and ScenarioReported events.
+        """
         assert isinstance(self._dispatcher, Dispatcher)
         self._dispatcher.listen(ArgParseEvent, self.on_chosen_arg_parse) \
                         .listen(ArgParsedEvent, self.on_chosen_arg_parsed) \
                         .listen(ScenarioReportedEvent, self.on_scenario_reported)
 
     def on_chosen_arg_parse(self, event: ArgParseEvent) -> None:
+        """
+        Add Allure-specific command-line arguments when the reporter is chosen.
+
+        :param event: The ArgParse event containing the argument parser.
+        """
         group = event.arg_parser.add_argument_group("Allure Reporter")
 
         group.add_argument("--allure-report-dir",
@@ -91,6 +124,11 @@ class AllureReporterPlugin(Reporter):
                            help="Attach scope to Allure report")
 
     def on_subscribe_arg_parse(self, event: ArgParseEvent) -> None:
+        """
+        Add Allure-specific command-line arguments when the reporter is subscribed.
+
+        :param event: The ArgParse event containing the argument parser.
+        """
         group = event.arg_parser.add_argument_group("Allure Reporter")
         group.add_argument("--allure-labels",
                            default=None,
@@ -98,6 +136,11 @@ class AllureReporterPlugin(Reporter):
                            help="Run tests with specific Allure labels")
 
     def on_chosen_arg_parsed(self, event: ArgParsedEvent) -> None:
+        """
+        Parse command-line arguments and configure the Allure reporter.
+
+        :param event: The ArgParsed event containing parsed arguments.
+        """
         self._report_dir = event.args.allure_report_dir
         self._attach_scope = event.args.allure_attach_scope
         self._allure_labels = event.args.allure_labels
@@ -107,9 +150,19 @@ class AllureReporterPlugin(Reporter):
         self._plugin_manager.register(self._logger)
 
     def on_subscribe_arg_parsed(self, event: ArgParsedEvent) -> None:
+        """
+        Parse Allure-specific command-line arguments for subscribed reporters.
+
+        :param event: The ArgParsed event containing parsed arguments.
+        """
         self._allure_labels = event.args.allure_labels
 
     def on_scenario_reported(self, event: ScenarioReportedEvent) -> None:
+        """
+        Report the scenario results to Allure, including status and attachments.
+
+        :param event: The ScenarioReported event containing scenario results.
+        """
         aggregated_result = event.aggregated_result
         if aggregated_result.is_passed():
             self._report_result(aggregated_result, Status.PASSED)
@@ -119,9 +172,21 @@ class AllureReporterPlugin(Reporter):
             self._report_result(aggregated_result, Status.SKIPPED)
 
     def _to_seconds(self, elapsed: float) -> int:
+        """
+        Convert elapsed time from seconds to milliseconds.
+
+        :param elapsed: The time duration in seconds.
+        :return: The time duration in milliseconds.
+        """
         return int(elapsed * 1000)
 
     def _create_labels(self, scenario: VirtualScenario) -> List[Label]:
+        """
+        Create labels for the given scenario to be included in the Allure report.
+
+        :param scenario: The VirtualScenario instance containing scenario details.
+        :return: A list of Label objects for the scenario.
+        """
         path = os.path.dirname(os.path.relpath(scenario.path))
         package = path.replace("/", ".")
 
@@ -147,9 +212,21 @@ class AllureReporterPlugin(Reporter):
         return labels
 
     def _get_scenario_tags(self, scenario: VirtualScenario) -> Tuple[str, ...]:
+        """
+        Retrieve the tags associated with the given scenario.
+
+        :param scenario: The VirtualScenario instance containing scenario details.
+        :return: A tuple of tags associated with the scenario.
+        """
         return getattr(scenario._orig_scenario, "tags", ())
 
     def _get_scenario_labels(self, scenario: VirtualScenario) -> Tuple[Label, ...]:
+        """
+        Retrieve the Allure labels associated with the given scenario.
+
+        :param scenario: The VirtualScenario instance containing scenario details.
+        :return: A tuple of Label objects for the scenario.
+        """
         template = getattr(scenario._orig_scenario, "__vedro__template__", None)
 
         labels = getattr(template, "__vedro__allure_labels__", ())
@@ -158,10 +235,24 @@ class AllureReporterPlugin(Reporter):
         return labels
 
     def _create_attachment(self, name: str, mime_type: str, ext: str) -> AllureAttachment:
+        """
+        Create an Allure attachment with the given name, MIME type, and extension.
+
+        :param name: The name of the attachment.
+        :param mime_type: The MIME type of the attachment.
+        :param ext: The file extension of the attachment.
+        :return: An AllureAttachment object.
+        """
         file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
         return AllureAttachment(name=name, source=file_name, type=mime_type)
 
     def _add_memory_attachment(self, artifact: MemoryArtifact) -> AllureAttachment:
+        """
+        Add an in-memory artifact as an Allure attachment.
+
+        :param artifact: The MemoryArtifact to be attached.
+        :return: The created AllureAttachment object.
+        """
         guessed = guess_extension(artifact.mime_type)
         ext = guessed.lstrip(".") if guessed else "unknown"
         attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
@@ -172,6 +263,12 @@ class AllureReporterPlugin(Reporter):
         return attachment
 
     def _add_file_attachment(self, artifact: FileArtifact) -> AllureAttachment:
+        """
+        Add a file artifact as an Allure attachment.
+
+        :param artifact: The FileArtifact to be attached.
+        :return: The created AllureAttachment object.
+        """
         suffix = artifact.path.suffix
         ext = suffix.lstrip(".") if suffix else "unknown"
         attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
@@ -183,6 +280,13 @@ class AllureReporterPlugin(Reporter):
 
     def _add_attachments(self, result: Union[TestResult, TestStepResult],
                          artifacts: List[Artifact]) -> None:
+        """
+        Add artifacts as attachments to a test result or step result.
+
+        :param result: The test result or step result to which attachments are added.
+        :param artifacts: The list of artifacts to be attached.
+        :raises ValueError: If an unknown artifact type is encountered.
+        """
         for artifact in artifacts:
             if isinstance(artifact, MemoryArtifact):
                 attachment = self._add_memory_attachment(artifact)
@@ -193,6 +297,13 @@ class AllureReporterPlugin(Reporter):
             result.attachments.append(attachment)
 
     def _format_scope(self, scope: Dict[Any, Any], indent: int = 4) -> str:
+        """
+        Format the scope dictionary into a human-readable string with indentation.
+
+        :param scope: The scope dictionary to format.
+        :param indent: The number of spaces to use for indentation (default: 4).
+        :return: A formatted string representation of the scope.
+        """
         res = ""
         for key, val in scope.items():
             try:
@@ -203,10 +314,22 @@ class AllureReporterPlugin(Reporter):
         return res
 
     def _get_scenario_unique_id(self, scenario: VirtualScenario) -> str:
+        """
+        Generate a unique ID for the scenario using a hash.
+
+        :param scenario: The VirtualScenario instance containing scenario details.
+        :return: A hashed unique ID for the scenario.
+        """
         unique_id = f"{self._project_name}_{scenario.unique_id}"
         return blake2b(unique_id.encode(), digest_size=32).hexdigest()
 
     def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
+        """
+        Report a scenario result to Allure, including steps, labels, and attachments.
+
+        :param scenario_result: The ScenarioResult object containing scenario data.
+        :param status: The status of the scenario (PASSED, FAILED, SKIPPED).
+        """
         test_result = TestResult()
         test_result.uuid = utils.uuid4()
         test_result.name = scenario_result.scenario.subject
@@ -243,6 +366,12 @@ class AllureReporterPlugin(Reporter):
         self._plugin_manager.hook.report_result(result=test_result)
 
     def _create_test_step_result(self, step_result: StepResult) -> TestStepResult:
+        """
+        Create a TestStepResult for a given step, including status and timing.
+
+        :param step_result: The StepResult object containing step data.
+        :return: The TestStepResult object for the step.
+        """
         test_step_result = TestStepResult()
         test_step_result.uuid = utils.uuid4()
         test_step_result.name = step_result.step_name.replace("_", " ")
@@ -256,6 +385,13 @@ class AllureReporterPlugin(Reporter):
 
 
 class AllureReporter(PluginConfig):
+    """
+    Configuration for the AllureReporterPlugin.
+
+    Defines the settings for Allure reporting, such as project name, report directory,
+    and options for attaching scope, tags, and artifacts.
+    """
+
     plugin = AllureReporterPlugin
 
     # Set project name (adds label "project_name" and prefix for testCaseId)
