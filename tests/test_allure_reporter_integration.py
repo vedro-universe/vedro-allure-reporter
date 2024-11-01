@@ -8,7 +8,7 @@ from baby_steps import given, then, when
 from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
 from vedro.core import MonotonicScenarioScheduler as Scheduler
 from vedro.core import ScenarioResult
-from vedro.events import ArgParsedEvent, ScenarioReportedEvent, StartupEvent
+from vedro.events import ScenarioReportedEvent, StartupEvent
 from vedro.plugins.director import DirectorPlugin
 
 import vedro_allure_reporter
@@ -22,7 +22,6 @@ from ._utils import (
     fire_arg_parsed_event,
     logger,
     make_aggregated_result,
-    make_parsed_args,
     make_scenario_result,
     make_step_result,
     make_test_case,
@@ -279,24 +278,6 @@ async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlug
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
-
-
-async def test_arg_parsed_event_allure_labels(*, dispatcher: Dispatcher,
-                                              director: DirectorPlugin,
-                                              reporter: AllureReporterPlugin):
-    with given:
-        await choose_reporter(dispatcher, director, reporter)
-
-        labels = "key1=value1,key2=value2"
-        report_dir = "allure_reports"
-        args = make_parsed_args(allure_labels=labels, allure_report_dir=report_dir)
-        event = ArgParsedEvent(args)
-
-    with when:
-        await dispatcher.fire(event)
-
-    with then:
-        assert reporter.allure_labels_to_run == labels
 
 
 async def test_no_allure_labels_to_run(*, dispatcher: Dispatcher,

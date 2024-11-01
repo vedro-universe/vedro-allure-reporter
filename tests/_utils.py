@@ -136,6 +136,7 @@ def make_test_case(uuid: str, scenario_result: ScenarioResult,
     test_case = {
         "uuid": uuid,
         "name": scenario_result.scenario.subject,
+        "fullName": scenario_result.scenario.unique_id,
         "status": scenario_result.status.value.lower(),
         "start": int(scenario_result.started_at * 1000),
         "stop": int(scenario_result.ended_at * 1000),

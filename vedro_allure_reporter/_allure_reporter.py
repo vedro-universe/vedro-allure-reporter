@@ -210,6 +210,7 @@ class AllureReporterPlugin(Reporter):
         test_result = TestResult()
         test_result.uuid = utils.uuid4()
         test_result.name = scenario_result.scenario.subject
+        test_result.fullName = scenario_result.scenario.unique_id
         test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
         test_result.testCaseId = self._get_scenario_unique_id(scenario_result.scenario)
         test_result.status = status
@@ -253,10 +254,6 @@ class AllureReporterPlugin(Reporter):
             test_step_result.status = Status.FAILED
         return test_step_result
 
-    @property
-    def allure_labels_to_run(self) -> Any:
-        return self._allure_labels
-
 
 class AllureReporter(PluginConfig):
     plugin = AllureReporterPlugin
@@ -277,7 +274,7 @@ class AllureReporter(PluginConfig):
     attach_artifacts: bool = True
 
     # Clean the report directory before generating new reports
-    clean_report_dir: bool = True  # Added configuration parameter
+    clean_report_dir: bool = True
 
     # Add custom labels to each scenario
     labels: List[Label] = []
