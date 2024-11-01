@@ -232,7 +232,7 @@ class AllureReporterPlugin(Reporter):
             test_step_result = self._create_test_step_result(step_result)
             if step_result.exc_info:
                 exc_info = step_result.exc_info
-                message = str(exc_info.value)
+                message = str(exc_info.value) or str(exc_info.type.__name__)
                 traceback = exc_info.traceback
                 trace = "".join(format_exception(exc_info.type, exc_info.value, traceback))
                 test_result.statusDetails = StatusDetails(message=message, trace=trace)
