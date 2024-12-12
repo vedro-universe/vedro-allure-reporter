@@ -4,10 +4,12 @@ from hashlib import blake2b
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
-from traceback import format_exception
+from traceback import extract_tb, format_exception
+from types import TracebackType
 from typing import Any, Dict, List, Tuple, Type, Union
 
 import allure_commons.utils as utils
+import vedro
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
 from allure_commons.logger import AllureFileLogger
@@ -18,6 +20,7 @@ from allure_commons.types import LabelType
 from vedro.core import (
     Artifact,
     Dispatcher,
+    ExcInfo,
     FileArtifact,
     MemoryArtifact,
     PluginConfig,
@@ -354,16 +357,54 @@ class AllureReporterPlugin(Reporter):
         for step_result in scenario_result.step_results:
             test_step_result = self._create_test_step_result(step_result)
             if step_result.exc_info:
-                exc_info = step_result.exc_info
-                message = str(exc_info.value) or str(exc_info.type.__name__)
-                traceback = exc_info.traceback
-                trace = "".join(format_exception(exc_info.type, exc_info.value, traceback))
-                test_result.statusDetails = StatusDetails(message=message, trace=trace)
+                test_result.statusDetails = self._create_status_details(step_result.exc_info)
             if self._attach_artifacts:
                 self._add_attachments(test_step_result, step_result.artifacts)
             test_result.steps.append(test_step_result)
 
         self._plugin_manager.hook.report_result(result=test_result)
+
+    def _create_status_details(self, exc_info: ExcInfo) -> StatusDetails:
+        """
+        Create a StatusDetails object from exception information.
+
+        This method formats the exception details, including the traceback, into a
+        StatusDetails object. It provides a human-readable message and the full
+        traceback as a string.
+
+        :param exc_info: The exception information containing type, value, and traceback.
+        :return: A StatusDetails object with the formatted exception message and trace.
+        """
+        traceback = self._filter_traceback(exc_info.traceback)
+
+        message = str(exc_info.value)
+        if not message:
+            message = f"{exc_info.type.__name__}"
+            frames = extract_tb(traceback)
+            if len(frames) > 0:
+                message += f": {frames[-1].line}"
+
+        trace = "".join(format_exception(exc_info.type, exc_info.value, traceback))
+        return StatusDetails(message=message, trace=trace)
+
+    def _filter_traceback(self, traceback: TracebackType) -> TracebackType:
+        """
+        Filter a traceback to include only relevant frames.
+
+        This method attempts to filter out irrelevant frames from a traceback,
+        focusing on frames from specific modules (e.g., `vedro`). If the
+        `TracebackFilter` utility is unavailable, it returns the unmodified traceback.
+
+        :param traceback: The original traceback to filter.
+        :return: The filtered traceback, or the original traceback if filtering fails.
+        """
+        try:
+            from vedro.plugins.director.rich.utils import TracebackFilter
+        except ImportError:
+            # backward compatibility
+            return traceback
+        else:
+            return TracebackFilter(modules=[vedro]).filter_tb(traceback)
 
     def _create_test_step_result(self, step_result: StepResult) -> TestStepResult:
         """
