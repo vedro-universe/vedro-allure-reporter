@@ -191,6 +191,67 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         assert logger.attachments == {}
 
 
+async def test_scenario_no_labels_config_labels_to_tags(*, dispatcher: Dispatcher,
+                                                        director: DirectorPlugin,
+                                                        logger: AllureMemoryLogger):
+    with given:
+        class AllureReporter(vedro_allure_reporter.AllureReporter):
+            labels = [AllureLabel("name_1", "value_1"), AllureLabel("name_2", "value_2")]
+
+        reporter = AllureReporterPlugin(AllureReporter,
+                                        logger_factory=lambda *args, **kwargs: logger)
+        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher, labels_to_tags=["name_2"])
+
+        tags = ["API"]
+        scenario_result = make_scenario_result(tags=tags).mark_passed() \
+                                                         .set_started_at(0.1) \
+                                                         .set_ended_at(0.2)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result,
+                           labels=AllureReporter.labels + [AllureLabel("tag", "API")])
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
+        assert scenario_result.scenario._orig_scenario.tags == ("API", )
+
+
+async def test_scenario_labels_config_labels_to_tags(*, dispatcher: Dispatcher,
+                                                     director: DirectorPlugin,
+                                                     reporter: AllureReporterPlugin,
+                                                     logger: AllureMemoryLogger):
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher, labels_to_tags=["name_2"])
+
+        tags = ["API"]
+        labels = (AllureLabel("name_1", "value_1"), AllureLabel("name_2", "value_2"))
+        scenario_result = make_scenario_result(
+            tags=tags, labels=labels
+        ).mark_passed().set_started_at(0.1).set_ended_at(0.2)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, labels=(AllureLabel("tag", "API"), *labels))
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
+        assert scenario_result.scenario._orig_scenario.tags == ("API", "name_2:value_2")
+
+
 async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
                                            director: DirectorPlugin,
                                            reporter: AllureReporterPlugin,

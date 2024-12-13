@@ -62,6 +62,7 @@ class AllureReporterPlugin(Reporter):
         self._config_labels = config.labels
         self._clean_report_dir = config.clean_report_dir
         self._allure_labels: Union[str, None] = None
+        self._allure_labels_to_tags: List[str] = config.labels_to_tags
 
     async def on_startup(self, event: StartupEvent) -> None:
         """
@@ -122,6 +123,10 @@ class AllureReporterPlugin(Reporter):
                            action='store_true',
                            default=self._attach_scope,
                            help="Attach scope to Allure report")
+        group.add_argument("--allure-labels-to-tags",
+                           default=[],
+                           nargs="+",
+                           help="Add allure labels to scenario tags")
 
     def on_subscribe_arg_parse(self, event: ArgParseEvent) -> None:
         """
@@ -144,6 +149,7 @@ class AllureReporterPlugin(Reporter):
         self._report_dir = event.args.allure_report_dir
         self._attach_scope = event.args.allure_attach_scope
         self._allure_labels = event.args.allure_labels
+        self._allure_labels_to_tags = event.args.allure_labels_to_tags
 
         self._plugin_manager.register(self)
         self._logger = self._logger_factory(self._report_dir, clean=self._clean_report_dir)
@@ -170,6 +176,9 @@ class AllureReporterPlugin(Reporter):
             self._report_result(aggregated_result, Status.FAILED)
         elif aggregated_result.is_skipped():
             self._report_result(aggregated_result, Status.SKIPPED)
+
+        if self._allure_labels_to_tags:
+            self._add_labels_to_tags(aggregated_result.scenario)
 
     def _to_seconds(self, elapsed: float) -> int:
         """
@@ -383,6 +392,17 @@ class AllureReporterPlugin(Reporter):
             test_step_result.status = Status.FAILED
         return test_step_result
 
+    def _add_labels_to_tags(self, scenario: VirtualScenario) -> None:
+        labels_names = [label.lower() for label in self._allure_labels_to_tags]
+
+        scenario_tags: List[str] = list(self._get_scenario_tags(scenario))
+
+        for label in self._get_scenario_labels(scenario):
+            if label.name.lower() in labels_names:
+                scenario_tags.append(f'{label.name}:{label.value}')
+
+        setattr(scenario._orig_scenario, "tags", tuple(scenario_tags))
+
 
 class AllureReporter(PluginConfig):
     """
@@ -414,3 +434,6 @@ class AllureReporter(PluginConfig):
 
     # Add custom labels to each scenario
     labels: List[Label] = []
+
+    # Add labels to scenario tags
+    labels_to_tags: List[str] = []

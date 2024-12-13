@@ -65,11 +65,13 @@ def logger() -> AllureMemoryLogger:
 def make_parsed_args(*,
                      allure_report_dir: str,
                      allure_attach_scope: bool = False,
-                     allure_labels: Optional[list] = None) -> Namespace:
+                     allure_labels: Optional[list] = None,
+                     allure_labels_to_tags: Optional[list] = None) -> Namespace:
 
     return Namespace(allure_report_dir=allure_report_dir,
                      allure_attach_scope=allure_attach_scope,
-                     allure_labels=allure_labels)
+                     allure_labels=allure_labels,
+                     allure_labels_to_tags=allure_labels_to_tags)
 
 
 @contextmanager
@@ -211,7 +213,9 @@ def make_step_result(vstep: Optional[VirtualStep] = None) -> StepResult:
 
 async def fire_arg_parsed_event(dispatcher: Dispatcher,
                                 report_dir: str = "allure_reports",
-                                labels: Optional[list] = None) -> None:
-    args = make_parsed_args(allure_report_dir=report_dir, allure_labels=labels)
+                                labels: Optional[list] = None,
+                                labels_to_tags: Optional[list] = None) -> None:
+    args = make_parsed_args(allure_report_dir=report_dir, allure_labels=labels,
+                            allure_labels_to_tags=labels_to_tags)
     event = ArgParsedEvent(args)
     await dispatcher.fire(event)
