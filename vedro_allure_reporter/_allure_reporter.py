@@ -4,7 +4,7 @@ from hashlib import blake2b
 from mimetypes import guess_extension
 from pathlib import Path
 from time import time
-from traceback import extract_tb, format_exception
+from traceback import format_exception
 from types import TracebackType
 from typing import Any, Dict, List, Tuple, Type, Union
 
@@ -17,6 +17,7 @@ from allure_commons.model2 import ATTACHMENT_PATTERN
 from allure_commons.model2 import Attachment as AllureAttachment
 from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
 from allure_commons.types import LabelType
+from niltype import Nil
 from vedro.core import (
     Artifact,
     Dispatcher,
@@ -376,16 +377,36 @@ class AllureReporterPlugin(Reporter):
         :return: A StatusDetails object with the formatted exception message and trace.
         """
         traceback = self._filter_traceback(exc_info.traceback)
-
-        message = str(exc_info.value)
-        if not message:
-            message = f"{exc_info.type.__name__}"
-            frames = extract_tb(traceback)
-            if len(frames) > 0:
-                message += f": {frames[-1].line}"
+        message = self.___format_exception_message(exc_info.value) or str(exc_info.type.__name__)
 
         trace = "".join(format_exception(exc_info.type, exc_info.value, traceback))
         return StatusDetails(message=message, trace=trace)
+
+    def ___format_exception_message(self, exc_value: BaseException) -> str:
+        """
+        Format an exception message for `AssertionError` or other exception types.
+
+        This method customizes the formatting of `AssertionError` messages by
+        including additional details, such as left and right operands and the
+        operator if they are available. For non-`AssertionError` exceptions, it
+        returns the string representation of the exception.
+
+        :param exc_value: The exception value to format.
+        :return: A string containing the formatted exception message.
+        """
+        if not isinstance(exc_value, AssertionError):
+            return str(exc_value)
+
+        left = getattr(exc_value, "__vedro_assert_left__", Nil)
+        if left is Nil:
+            return str(exc_value)
+
+        right = getattr(exc_value, "__vedro_assert_right__", Nil)
+        operator = getattr(exc_value, "__vedro_assert_operator__", Nil)
+        if (right is Nil) or (operator is Nil):
+            return f"{exc_value.__class__.__name__}: assert {left!r}"
+        else:
+            return f"{exc_value.__class__.__name__}: assert {left!r} {operator} {right!r}"
 
     def _filter_traceback(self, traceback: TracebackType) -> TracebackType:
         """
