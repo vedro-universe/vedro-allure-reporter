@@ -65,6 +65,7 @@ class AllureReporterPlugin(Reporter):
         self._attach_artifacts = config.attach_artifacts
         self._config_labels = config.labels
         self._clean_report_dir = config.clean_report_dir
+        self._report_rescheduled_scenarios = config.report_rescheduled_scenarios
         self._allure_labels: Union[str, None] = None
 
     async def on_startup(self, event: StartupEvent) -> None:
@@ -168,12 +169,29 @@ class AllureReporterPlugin(Reporter):
         :param event: The ScenarioReported event containing scenario results.
         """
         aggregated_result = event.aggregated_result
-        if aggregated_result.is_passed():
-            self._report_result(aggregated_result, Status.PASSED)
-        elif aggregated_result.is_failed():
-            self._report_result(aggregated_result, Status.FAILED)
-        elif aggregated_result.is_skipped():
-            self._report_result(aggregated_result, Status.SKIPPED)
+        if self._report_rescheduled_scenarios:
+            for scenario_result in aggregated_result.scenario_results:
+                self._report_result(scenario_result,
+                                    self._get_scenario_result_status(scenario_result))
+        else:
+            self._report_result(aggregated_result,
+                                self._get_scenario_result_status(aggregated_result))
+
+    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> Status:
+        """
+        Retrieve the Allure status of a scenario result based on its status.
+
+        :param scenario_result: The ScenarioResult object containing scenario data.
+        :return: The Allure status of the scenario (PASSED, FAILED, SKIPPED).
+        """
+        if scenario_result.is_passed():
+            return Status.PASSED
+        elif scenario_result.is_failed():
+            return Status.FAILED
+        elif scenario_result.is_skipped():
+            return Status.SKIPPED
+        else:
+            return Status.UNKNOWN
 
     def _to_seconds(self, elapsed: float) -> int:
         """
@@ -476,3 +494,6 @@ class AllureReporter(PluginConfig):
 
     # Add custom labels to each scenario
     labels: List[Label] = []
+
+    # Report rescheduled scenarios
+    report_rescheduled_scenarios: bool = False
