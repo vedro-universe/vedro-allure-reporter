@@ -102,5 +102,6 @@ async def test_scenario_reported_unknown_status(*, dispatcher: Dispatcher,
         await dispatcher.fire(event)
 
     with then:
-        assert plugin_manager_.mock_calls == []
+        assert plugin_manager_.hook.report_result.assert_called() is None
+        assert len(plugin_manager_.mock_calls) == 1
         assert logger_.mock_calls == []
