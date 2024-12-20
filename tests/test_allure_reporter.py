@@ -86,6 +86,39 @@ async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
         assert logger_.mock_calls == []
 
 
+@pytest.mark.parametrize(("report_rescheduled", "calls"), [
+    (False, 1),
+    (True, 2),
+])
+async def test_scenarios_reported(report_rescheduled: bool, calls: int, *,
+                                  dispatcher: Dispatcher,
+                                  director: DirectorPlugin,
+                                  reporter: AllureReporterPlugin,
+                                  plugin_manager_: Mock,
+                                  logger_: Mock):
+    with given:
+        reporter._report_rescheduled_scenarios = report_rescheduled
+
+        await choose_reporter(dispatcher, director, reporter)
+
+        scenario_result1 = make_scenario_result().mark_failed() \
+                                                 .set_started_at(1.0).set_ended_at(3.0)
+        scenario_result2 = make_scenario_result().mark_passed() \
+                                                 .set_started_at(4.0).set_ended_at(6.0)
+        aggregated_result = AggregatedResult.from_existing(scenario_result2,
+                                                           [scenario_result1, scenario_result2])
+
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when:
+        await dispatcher.fire(event)
+
+    with then:
+        assert plugin_manager_.hook.report_result.assert_called() is None
+        assert len(plugin_manager_.mock_calls) == calls
+        assert logger_.mock_calls == []
+
+
 async def test_scenario_reported_unknown_status(*, dispatcher: Dispatcher,
                                                 director: DirectorPlugin,
                                                 reporter: AllureReporterPlugin,
@@ -102,5 +135,6 @@ async def test_scenario_reported_unknown_status(*, dispatcher: Dispatcher,
         await dispatcher.fire(event)
 
     with then:
-        assert plugin_manager_.mock_calls == []
+        assert plugin_manager_.hook.report_result.assert_called() is None
+        assert len(plugin_manager_.mock_calls) == 1
         assert logger_.mock_calls == []

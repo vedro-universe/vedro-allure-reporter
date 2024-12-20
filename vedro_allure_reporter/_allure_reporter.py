@@ -33,6 +33,8 @@ from vedro.core import (
 from vedro.events import ArgParsedEvent, ArgParseEvent, ScenarioReportedEvent, StartupEvent
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
+from .allure_rerunner import AllureRerunner, AllureRerunnerPlugin
+
 __all__ = ("AllureReporter", "AllureReporterPlugin",)
 
 
@@ -65,7 +67,9 @@ class AllureReporterPlugin(Reporter):
         self._attach_artifacts = config.attach_artifacts
         self._config_labels = config.labels
         self._clean_report_dir = config.clean_report_dir
+        self._report_rescheduled_scenarios = config.report_rescheduled_scenarios
         self._allure_labels: Union[str, None] = None
+        self._allure_rerunner = AllureRerunnerPlugin(AllureRerunner)
 
     async def on_startup(self, event: StartupEvent) -> None:
         """
@@ -99,6 +103,8 @@ class AllureReporterPlugin(Reporter):
         dispatcher.listen(ArgParseEvent, self.on_subscribe_arg_parse)
         dispatcher.listen(ArgParsedEvent, self.on_subscribe_arg_parsed)
         dispatcher.listen(StartupEvent, self.on_startup)
+
+        self._allure_rerunner.subscribe(dispatcher)
 
     def on_chosen(self) -> None:
         """
@@ -153,6 +159,13 @@ class AllureReporterPlugin(Reporter):
         self._logger = self._logger_factory(self._report_dir, clean=self._clean_report_dir)
         self._plugin_manager.register(self._logger)
 
+        if getattr(event.args, "reruns", None):
+            exit(
+                "⚠️ AllureReporterPlugin: "
+                "Use '--allure-reruns' instead of '--reruns' for proper Allure-compliant rerun "
+                "reporting, ensuring that the final scenario status aligns with Allure logic"
+            )
+
     def on_subscribe_arg_parsed(self, event: ArgParsedEvent) -> None:
         """
         Parse Allure-specific command-line arguments for subscribed reporters.
@@ -168,12 +181,29 @@ class AllureReporterPlugin(Reporter):
         :param event: The ScenarioReported event containing scenario results.
         """
         aggregated_result = event.aggregated_result
-        if aggregated_result.is_passed():
-            self._report_result(aggregated_result, Status.PASSED)
-        elif aggregated_result.is_failed():
-            self._report_result(aggregated_result, Status.FAILED)
-        elif aggregated_result.is_skipped():
-            self._report_result(aggregated_result, Status.SKIPPED)
+        if self._report_rescheduled_scenarios:
+            for scenario_result in aggregated_result.scenario_results:
+                self._report_result(scenario_result,
+                                    self._get_scenario_result_status(scenario_result))
+        else:
+            self._report_result(aggregated_result,
+                                self._get_scenario_result_status(aggregated_result))
+
+    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> Status:
+        """
+        Retrieve the Allure status of a scenario result based on its status.
+
+        :param scenario_result: The ScenarioResult object containing scenario data.
+        :return: The Allure status of the scenario (PASSED, FAILED, SKIPPED).
+        """
+        if scenario_result.is_passed():
+            return Status.PASSED
+        elif scenario_result.is_failed():
+            return Status.FAILED
+        elif scenario_result.is_skipped():
+            return Status.SKIPPED
+        else:
+            return Status.UNKNOWN
 
     def _to_seconds(self, elapsed: float) -> int:
         """
@@ -476,3 +506,9 @@ class AllureReporter(PluginConfig):
 
     # Add custom labels to each scenario
     labels: List[Label] = []
+
+    # If True, includes all individual scenario runs in the Allure report when scenarios
+    # are rescheduled (e.g., due to reruns or repeats). Each additional run will be
+    # represented, providing visibility into the scenario's intermediate attempts.
+    # If False, only the aggregated final result is reported.
+    report_rescheduled_scenarios: bool = False

@@ -69,7 +69,9 @@ def make_parsed_args(*,
 
     return Namespace(allure_report_dir=allure_report_dir,
                      allure_attach_scope=allure_attach_scope,
-                     allure_labels=allure_labels)
+                     allure_labels=allure_labels,
+                     allure_reruns=0,
+                     allure_reruns_delay=0.0)
 
 
 @contextmanager
