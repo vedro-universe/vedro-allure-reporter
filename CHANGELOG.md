@@ -2,13 +2,25 @@
 
 ## v1.0
 
+### v1.11 (2024-12-20)
+
+- Add support for reporting rescheduled scenarios [#14](https://github.com/vedro-universe/vedro-allure-reporter/pull/14)
+- Introduce `AllureRerunner` for handling rerun scenarios [#14](https://github.com/vedro-universe/vedro-allure-reporter/pull/14)
+- Add warnings for incorrect rerun flag usage [#14](https://github.com/vedro-universe/vedro-allure-reporter/pull/14)
+
+## v1.10 (2024-11-01)
+
+- Add `fullName` attribute to test cases for better identification ([f8472f5](https://github.com/vedro-universe/vedro-allure-reporter/commit/f8472f5d96ce45f48e7d3a73cd78cb881a3a31c0))
+- Ensure error message is not empty by using exception type name as fallback ([c77d47a](https://github.com/vedro-universe/vedro-allure-reporter/commit/c77d47a74d1c2379431cceb36c681878a0bee846))
+- Refactor exception handling for improved traceback extraction and formatting ([21d2678](https://github.com/vedro-universe/vedro-allure-reporter/commit/21d2678383a23ad097ed5a4091080027b6d37214))
+
 ### v1.9 (2024-10-21)
 
-- Add configuration for cleaning report directory
+- Add configuration for cleaning report directory ([05bda39](https://github.com/vedro-universe/vedro-allure-reporter/commit/05bda39d330163a33a3dfe5b453b0e6efba54b5e))
 
 ### v1.8 (2023-06-24)
 
-- Add --allure-labels arg [#9](https://github.com/vedro-universe/vedro-allure-reporter/pull/9)
+- Add `--allure-labels` arg [#9](https://github.com/vedro-universe/vedro-allure-reporter/pull/9)
 
 ### v1.7.1 (2023-06-06)
 
