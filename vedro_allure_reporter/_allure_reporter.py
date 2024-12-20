@@ -159,6 +159,13 @@ class AllureReporterPlugin(Reporter):
         self._logger = self._logger_factory(self._report_dir, clean=self._clean_report_dir)
         self._plugin_manager.register(self._logger)
 
+        if getattr(event.args, "reruns", None):
+            exit(
+                "⚠️ AllureReporterPlugin: "
+                "Use '--allure-reruns' instead of '--reruns' for proper Allure-compliant rerun "
+                "reporting, ensuring that the final scenario status aligns with Allure logic"
+            )
+
     def on_subscribe_arg_parsed(self, event: ArgParsedEvent) -> None:
         """
         Parse Allure-specific command-line arguments for subscribed reporters.
@@ -500,5 +507,8 @@ class AllureReporter(PluginConfig):
     # Add custom labels to each scenario
     labels: List[Label] = []
 
-    # Report rescheduled scenarios
+    # If True, includes all individual scenario runs in the Allure report when scenarios
+    # are rescheduled (e.g., due to reruns or repeats). Each additional run will be
+    # represented, providing visibility into the scenario's intermediate attempts.
+    # If False, only the aggregated final result is reported.
     report_rescheduled_scenarios: bool = False
