@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from allure_commons.logger import AllureMemoryLogger
 from baby_steps import given, then, when
-from vedro.core import Dispatcher, FileArtifact, MemoryArtifact
+from vedro.core import AggregatedResult, Dispatcher, FileArtifact, MemoryArtifact
 from vedro.core import MonotonicScenarioScheduler as Scheduler
 from vedro.core import ScenarioResult
 from vedro.events import ScenarioReportedEvent, StartupEvent
@@ -65,6 +65,68 @@ async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
     with then:
         assert logger.test_cases == [
             make_test_case(uuid, scenario_result)
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
+
+
+@pytest.mark.parametrize("make_result", [
+    lambda: make_scenario_result().mark_passed(),
+    lambda: make_scenario_result().mark_failed(),
+    lambda: make_scenario_result().mark_skipped(),
+])
+async def test_scenario_reported_rescheduled(make_result: Callable[[], ScenarioResult], *,
+                                             dispatcher: Dispatcher,
+                                             director: DirectorPlugin,
+                                             reporter: AllureReporterPlugin,
+                                             logger: AllureMemoryLogger):
+    with given:
+        reporter._report_rescheduled_scenarios = True
+
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_result = make_result().set_started_at(1.0).set_ended_at(3.0)
+        aggregated_result = make_aggregated_result(scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result)
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}
+
+
+async def test_scenarios_reported_rescheduled(*, dispatcher: Dispatcher,
+                                              director: DirectorPlugin,
+                                              reporter: AllureReporterPlugin,
+                                              logger: AllureMemoryLogger):
+    with given:
+        reporter._report_rescheduled_scenarios = True
+
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        scenario_result1 = make_scenario_result().mark_failed() \
+                                                 .set_started_at(1.0).set_ended_at(3.0)
+        scenario_result2 = make_scenario_result().mark_passed() \
+                                                 .set_started_at(4.0).set_ended_at(6.0)
+
+        aggregated_result = AggregatedResult.from_existing(scenario_result2,
+                                                           [scenario_result1, scenario_result2])
+        event = ScenarioReportedEvent(aggregated_result)
+
+    with when, patch_uuid() as uuid:
+        await dispatcher.fire(event)
+
+    with then:
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result1),
+            make_test_case(uuid, scenario_result2),
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
