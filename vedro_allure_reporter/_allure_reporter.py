@@ -160,7 +160,7 @@ class AllureReporterPlugin(Reporter):
         self._plugin_manager.register(self._logger)
 
         if getattr(event.args, "reruns", None):
-            exit(
+            print(
                 "⚠️ AllureReporterPlugin: "
                 "Use '--allure-reruns' instead of '--reruns' for proper Allure-compliant rerun "
                 "reporting, ensuring that the final scenario status aligns with Allure logic"
