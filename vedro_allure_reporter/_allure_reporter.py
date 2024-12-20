@@ -33,6 +33,8 @@ from vedro.core import (
 from vedro.events import ArgParsedEvent, ArgParseEvent, ScenarioReportedEvent, StartupEvent
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
+from .allure_rerunner import AllureRerunner, AllureRerunnerPlugin
+
 __all__ = ("AllureReporter", "AllureReporterPlugin",)
 
 
@@ -67,6 +69,7 @@ class AllureReporterPlugin(Reporter):
         self._clean_report_dir = config.clean_report_dir
         self._report_rescheduled_scenarios = config.report_rescheduled_scenarios
         self._allure_labels: Union[str, None] = None
+        self._allure_rerunner = AllureRerunnerPlugin(AllureRerunner)
 
     async def on_startup(self, event: StartupEvent) -> None:
         """
@@ -100,6 +103,8 @@ class AllureReporterPlugin(Reporter):
         dispatcher.listen(ArgParseEvent, self.on_subscribe_arg_parse)
         dispatcher.listen(ArgParsedEvent, self.on_subscribe_arg_parsed)
         dispatcher.listen(StartupEvent, self.on_startup)
+
+        self._allure_rerunner.subscribe(dispatcher)
 
     def on_chosen(self) -> None:
         """
