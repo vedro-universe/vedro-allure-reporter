@@ -12,7 +12,7 @@ from typing import Union
 
 from allure_commons import plugin_manager
 from allure_commons.model2 import Attachment as AllureAttachment, ATTACHMENT_PATTERN
-from allure_commons.utils import uuid4
+import allure_commons.utils as utils
 
 
 def create_attachment(name: str, mime_type: str, ext: str) -> AllureAttachment:
@@ -27,7 +27,7 @@ def create_attachment(name: str, mime_type: str, ext: str) -> AllureAttachment:
     Returns:
         An AllureAttachment object.
     """
-    file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=ext)
+    file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
     return AllureAttachment(name=name, source=file_name, type=mime_type)
 
 

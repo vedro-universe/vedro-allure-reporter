@@ -180,6 +180,8 @@ async def choose_reporter(dispatcher: Dispatcher,
                           director: DirectorPlugin, reporter: AllureReporterPlugin) -> None:
     await dispatcher.fire(ConfigLoadedEvent(Path(), Config))
     await dispatcher.fire(ArgParseEvent(ArgumentParser()))
+    # Make reporter chosen by calling on_chosen directly
+    reporter.on_chosen()
 
 
 def create_attachment(artifact: Union[MemoryArtifact, FileArtifact],
