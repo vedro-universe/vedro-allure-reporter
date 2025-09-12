@@ -1,7 +1,6 @@
 import json
 import os
 from hashlib import blake2b
-from mimetypes import guess_extension
 from pathlib import Path
 from time import time
 from traceback import format_exception
@@ -13,7 +12,6 @@ import vedro
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
 from allure_commons.logger import AllureFileLogger
-from allure_commons.model2 import ATTACHMENT_PATTERN
 from allure_commons.model2 import Attachment as AllureAttachment
 from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
 from allure_commons.types import LabelType
@@ -33,6 +31,7 @@ from vedro.core import (
 from vedro.events import ArgParsedEvent, ArgParseEvent, ScenarioReportedEvent, StartupEvent
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
+from ._allure_attachments import create_attachment, create_file_attachment, create_memory_attachment
 from .allure_rerunner import AllureRerunner, AllureRerunnerPlugin
 
 __all__ = ("AllureReporter", "AllureReporterPlugin",)
@@ -277,8 +276,7 @@ class AllureReporterPlugin(Reporter):
         :param ext: The file extension of the attachment.
         :return: An AllureAttachment object.
         """
-        file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
-        return AllureAttachment(name=name, source=file_name, type=mime_type)
+        return create_attachment(name, mime_type, ext)
 
     def _add_memory_attachment(self, artifact: MemoryArtifact) -> AllureAttachment:
         """
@@ -287,14 +285,7 @@ class AllureReporterPlugin(Reporter):
         :param artifact: The MemoryArtifact to be attached.
         :return: The created AllureAttachment object.
         """
-        guessed = guess_extension(artifact.mime_type)
-        ext = guessed.lstrip(".") if guessed else "unknown"
-        attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
-
-        self._plugin_manager.hook.report_attached_data(body=artifact.data,
-                                                       file_name=attachment.source)
-
-        return attachment
+        return create_memory_attachment(artifact.data, artifact.name, artifact.mime_type)
 
     def _add_file_attachment(self, artifact: FileArtifact) -> AllureAttachment:
         """
@@ -303,14 +294,7 @@ class AllureReporterPlugin(Reporter):
         :param artifact: The FileArtifact to be attached.
         :return: The created AllureAttachment object.
         """
-        suffix = artifact.path.suffix
-        ext = suffix.lstrip(".") if suffix else "unknown"
-        attachment = self._create_attachment(artifact.name, artifact.mime_type, ext)
-
-        self._plugin_manager.hook.report_attached_file(source=artifact.path,
-                                                       file_name=attachment.source)
-
-        return attachment
+        return create_file_attachment(artifact.path, artifact.name, artifact.mime_type)
 
     def _add_attachments(self, result: Union[TestResult, TestStepResult],
                          artifacts: List[Artifact]) -> None:

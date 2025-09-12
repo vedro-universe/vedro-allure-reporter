@@ -8,15 +8,19 @@ in Allure reports when using the Vedro testing framework.
 import functools
 import inspect
 import json
-import mimetypes
 import threading
-from mimetypes import guess_extension
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
-from allure_commons import plugin_manager
-from allure_commons.model2 import Attachment as AllureAttachment, ATTACHMENT_PATTERN, TestStepResult
+from allure_commons.model2 import TestStepResult
 from allure_commons.utils import now, uuid4
+
+from ._allure_attachments import (
+    add_attachment_to_step,
+    create_file_attachment,
+    create_screenshot_attachment,
+    create_text_attachment,
+)
 
 __all__ = [
     'allure_step',
@@ -247,7 +251,7 @@ def attach_text(text: str, name: str = "Text Attachment",
                 attachment_type: str = "text/plain") -> None:
     """
     Attach text content to the current step.
-
+    
     Args:
         text: Text content to attach
         name: Name of the attachment (default: "Text Attachment")
@@ -255,27 +259,8 @@ def attach_text(text: str, name: str = "Text Attachment",
     """
     current_step_obj = _step_context.get_current_step_object()
     if current_step_obj:
-        # Create attachment using allure-commons mechanisms
-        # Determine file extension
-        guessed = guess_extension(attachment_type)
-        ext = guessed.lstrip(".") if guessed else "txt"
-
-        # Create attachment
-        file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=ext)
-        attachment = AllureAttachment(name=name, source=file_name, type=attachment_type)
-
-        # Ensure step has attachments list
-        if not hasattr(current_step_obj, 'attachments') or current_step_obj.attachments is None:
-            current_step_obj.attachments = []
-
-        # Add attachment to step
-        current_step_obj.attachments.append(attachment)
-
-        # Save attachment content to file
-        plugin_manager.hook.report_attached_data(body=text.encode('utf-8'),
-                                                 file_name=file_name)
-
-
+        attachment = create_text_attachment(text, name, attachment_type)
+        add_attachment_to_step(current_step_obj, attachment)
 def attach_json(data: Any, name: str = "JSON Data") -> None:
     """
     Attach JSON data to the current step.
@@ -295,7 +280,7 @@ def attach_json(data: Any, name: str = "JSON Data") -> None:
 def attach_file(file_path: Union[str, Path], name: Optional[str] = None) -> None:
     """
     Attach a file to the current step.
-
+    
     Args:
         file_path: Path to the file to attach
         name: Name of the attachment (defaults to filename)
@@ -303,74 +288,26 @@ def attach_file(file_path: Union[str, Path], name: Optional[str] = None) -> None
     current_step_obj = _step_context.get_current_step_object()
     if not current_step_obj:
         return
-
+        
     file_path = Path(file_path)
     if not file_path.exists():
         add_step_parameter("file_error", f"File not found: {file_path}")
         return
-
-    # Create attachment using allure-commons mechanisms
-    # Determine MIME type and extension
-    mime_type, _ = mimetypes.guess_type(str(file_path))
-    if mime_type is None:
-        mime_type = "application/octet-stream"
-
-    suffix = file_path.suffix
-    ext = suffix.lstrip(".") if suffix else "unknown"
-    attachment_name = name or file_path.name
-
-    # Create attachment
-    file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=ext)
-    attachment = AllureAttachment(name=attachment_name, source=file_name, type=mime_type)
-
-    # Ensure step has attachments list
-    if not hasattr(current_step_obj, 'attachments') or current_step_obj.attachments is None:
-        current_step_obj.attachments = []
-
-    # Add attachment to step
-    current_step_obj.attachments.append(attachment)
-
-    # Save attachment content to file
-    plugin_manager.hook.report_attached_file(source=file_path, file_name=file_name)
-
-
+    
+    attachment = create_file_attachment(file_path, name)
+    add_attachment_to_step(current_step_obj, attachment)
 def attach_screenshot(screenshot_data: bytes, name: str = "Screenshot") -> None:
     """
     Attach screenshot data to the current step.
-
+    
     Args:
         screenshot_data: Raw screenshot data (PNG/JPEG bytes)
         name: Name of the attachment (default: "Screenshot")
     """
     current_step_obj = _step_context.get_current_step_object()
     if current_step_obj:
-        # Create attachment using allure-commons mechanisms
-        # Determine if PNG or JPEG based on header
-        if screenshot_data.startswith(b'\x89PNG'):
-            mime_type = "image/png"
-            ext = "png"
-        elif screenshot_data.startswith(b'\xff\xd8\xff'):
-            mime_type = "image/jpeg"
-            ext = "jpg"
-        else:
-            mime_type = "image/png"  # Default to PNG
-            ext = "png"
-
-        # Create attachment
-        file_name = ATTACHMENT_PATTERN.format(prefix=uuid4(), ext=ext)
-        attachment = AllureAttachment(name=name, source=file_name, type=mime_type)
-
-        # Ensure step has attachments list
-        if not hasattr(current_step_obj, 'attachments') or current_step_obj.attachments is None:
-            current_step_obj.attachments = []
-
-        # Add attachment to step
-        current_step_obj.attachments.append(attachment)
-
-        # Save attachment content to file
-        plugin_manager.hook.report_attached_data(body=screenshot_data, file_name=file_name)
-
-
+        attachment = create_screenshot_attachment(screenshot_data, name)
+        add_attachment_to_step(current_step_obj, attachment)
 def add_link(url: str, name: Optional[str] = None) -> None:
     """
     Add a link to the current step.
