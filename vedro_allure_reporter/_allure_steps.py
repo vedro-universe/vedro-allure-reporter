@@ -420,57 +420,104 @@ class AllureStep:
 
     def __call__(self, func: F) -> F:
         """Use as decorator."""
+        import inspect
+        
+        if inspect.iscoroutinefunction(func):
+            # Handle async functions
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Extract self if this is a method call
+                func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+                
+                # Get function signature for better parameter mapping
+                try:
+                    sig = inspect.signature(func)
+                    bound_args = sig.bind(*args, **kwargs)
+                    bound_args.apply_defaults()
+                    
+                    # Remove 'self' from arguments for cleaner parameter mapping
+                    clean_args = dict(bound_args.arguments)
+                    if 'self' in clean_args:
+                        del clean_args['self']
+                    
+                    formatted_title = _format_step_title(self.title, args[1:] if func_self else args,
+                                                       clean_args, func_self)
+                    
+                    # Convert function parameters to Allure parameters format
+                    function_parameters = []
+                    for param_name, param_value in clean_args.items():
+                        function_parameters.append({
+                            "name": param_name,
+                            "value": str(param_value)
+                        })
+                    
+                except Exception:
+                    # Fallback to basic formatting
+                    formatted_title = _format_step_title(self.title, args, kwargs, func_self)
+                    # Fallback parameters from kwargs
+                    function_parameters = []
+                    for param_name, param_value in kwargs.items():
+                        function_parameters.append({
+                            "name": param_name,
+                            "value": str(param_value)
+                        })
+                
+                with AllureStep(formatted_title, parameters=function_parameters):
+                    return await func(*args, **kwargs)
+            
+            return async_wrapper  # type: ignore
+        
+        else:
+            # Handle sync functions
+            @functools.wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Extract self if this is a method call
+                func_self = args[0] if args and hasattr(args[0], '__dict__') else None
 
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Extract self if this is a method call
-            func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+                # Get function signature for better parameter mapping
+                try:
+                    sig = inspect.signature(func)
+                    bound_args = sig.bind(*args, **kwargs)
+                    bound_args.apply_defaults()
 
-            # Get function signature for better parameter mapping
-            import inspect
-            try:
-                sig = inspect.signature(func)
-                bound_args = sig.bind(*args, **kwargs)
-                bound_args.apply_defaults()
+                    # Remove 'self' from arguments for cleaner parameter mapping
+                    clean_args = dict(bound_args.arguments)
+                    if 'self' in clean_args:
+                        del clean_args['self']
 
-                # Remove 'self' from arguments for cleaner parameter mapping
-                clean_args = dict(bound_args.arguments)
-                if 'self' in clean_args:
-                    del clean_args['self']
+                    formatted_title = _format_step_title(self.title, args[1:] if func_self else args,
+                                                       clean_args, func_self)
 
-                formatted_title = _format_step_title(self.title, args[1:] if func_self else args,
-                                                     clean_args, func_self)
+                    # Convert function parameters to Allure parameters format
+                    function_parameters = []
+                    for param_name, param_value in clean_args.items():
+                        function_parameters.append({
+                            "name": param_name,
+                            "value": str(param_value)
+                        })
 
-                # Convert function parameters to Allure parameters format
-                function_parameters = []
-                for param_name, param_value in clean_args.items():
-                    function_parameters.append({
-                        "name": param_name,
-                        "value": str(param_value)
-                    })
+                except Exception:
+                    # Fallback to basic formatting
+                    formatted_title = _format_step_title(self.title, args, kwargs, func_self)
+                    # Fallback parameters from kwargs
+                    function_parameters = []
+                    for param_name, param_value in kwargs.items():
+                        function_parameters.append({
+                            "name": param_name,
+                            "value": str(param_value)
+                        })
 
-            except Exception:
-                # Fallback to basic formatting
-                formatted_title = _format_step_title(self.title, args, kwargs, func_self)
-                # Fallback parameters from kwargs
-                function_parameters = []
-                for param_name, param_value in kwargs.items():
-                    function_parameters.append({
-                        "name": param_name,
-                        "value": str(param_value)
-                    })
+                with AllureStep(formatted_title, parameters=function_parameters):
+                    return func(*args, **kwargs)
 
-            with AllureStep(formatted_title, parameters=function_parameters):
-                return func(*args, **kwargs)
-
-        return wrapper  # type: ignore
+            return wrapper  # type: ignore
 
     def _determine_vedro_step_from_callstack(self) -> Optional[str]:
         """
         Try to determine the current Vedro step by analyzing the call stack.
         
         This looks for Vedro step methods in the call stack (methods starting with
-        given_, when_, then_) to determine which step is currently executing.
+        given_, when_, then_, and_) to determine which step is currently executing.
         
         Returns:
             Name of the Vedro step if found, None otherwise
@@ -486,7 +533,7 @@ class AllureStep:
                 function_name = frame_info.function
 
                 # Check if this looks like a Vedro step method
-                if (function_name.startswith(('given_', 'when_', 'then_')) and
+                if (function_name.startswith(('given_', 'when_', 'then_', 'and_')) and
                         'self' in frame.f_locals):
                     # Convert method name to readable step name
                     step_name = function_name.replace('_', ' ')
