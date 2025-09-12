@@ -1,9 +1,10 @@
-import pytest
 import threading
 import time
 from unittest.mock import Mock, patch
 
+import pytest
 from baby_steps import given, then, when
+
 from vedro_allure_reporter._allure_steps import (
     allure_step,
     AllureStepContext,
@@ -60,7 +61,7 @@ def test_decorator_execution():
     """Test that decorated function executes with step context."""
     with given:
         clear_current_steps()
-        
+
         @allure_step("Test step")
         def test_function():
             return "result"
@@ -96,7 +97,7 @@ def test_decorator_handles_exceptions():
     """Test that decorator properly handles exceptions."""
     with given:
         clear_current_steps()
-        
+
         @allure_step("Failing step")
         def failing_function():
             raise ValueError("Test error")
@@ -163,15 +164,15 @@ def test_nested_steps():
         # Should have recorded both parent and child steps
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1  # Only parent is recorded at top level
-        
+
         parent_step = recorded_steps[0]
         assert parent_step.name == "Parent step"
         assert parent_step.status == "passed"
-        
+
         # Child step should be nested within parent
         assert hasattr(parent_step, 'steps') and parent_step.steps is not None
         assert len(parent_step.steps) == 1
-        
+
         child_step = parent_step.steps[0]
         assert child_step.name == "Child step"
         assert child_step.status == "passed"
@@ -225,10 +226,6 @@ def test_thread_local_isolation():
         assert results["1"] == "step-1"
         assert results["2"] == "step-2"
 
-
-# =========================================
-# ETAP 3 TESTS: Enhanced Nested Steps
-# =========================================
 
 def test_step_depth_tracking():
     """Test that step depth is tracked correctly for nested contexts."""
@@ -304,8 +301,12 @@ def test_parameter_substitution_in_decorator():
             result = test_function(5, method="batch")
 
     with then:
-        # Check that AllureStep was created with formatted title
-        mock_step_class.assert_called_once_with("Process 5 items with method batch")
+        # Check that AllureStep was created with formatted title and parameters
+        expected_params = [
+            {'name': 'count', 'value': '5'},
+            {'name': 'method', 'value': 'batch'}
+        ]
+        mock_step_class.assert_called_once_with("Process 5 items with method batch", parameters=expected_params)
         assert result == "Processed 5 items using batch"
 
 
@@ -334,8 +335,8 @@ def test_self_attribute_substitution():
             result = test_obj.login_method()
 
     with then:
-        # Check that AllureStep was created with self attributes substituted
-        mock_step_class.assert_called_once_with("Login user test_user with role admin")
+        # Check that AllureStep was created with self attributes substituted and empty parameters
+        mock_step_class.assert_called_once_with("Login user test_user with role admin", parameters=[])
         assert result == "Logged in test_user as admin"
 
 
@@ -433,10 +434,6 @@ def test_thread_isolation_with_nested_steps():
             assert results[thread_id] == [1, True, 2], f"Thread {thread_id} had incorrect results"
 
 
-# =========================================
-# ETAP 4 TESTS: Attachments and Enhanced Parameters
-# =========================================
-
 def test_attach_text():
     """Test text attachment functionality."""
     with given:
@@ -448,20 +445,22 @@ def test_attach_text():
             attach_text("Test content", name="Test Attachment")
 
     with then:
-        # Verify step was created and has parameters from attachment
+        # Verify step was created and has attachments (not parameters)
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1
-        
+
         step = recorded_steps[0]
         assert step.name == "Test step"
-        
-        # Check that attachment was added as parameter
-        assert hasattr(step, 'parameters') and step.parameters is not None
-        assert len(step.parameters) > 0
-        
-        # Find attachment parameter
-        attachment_params = [p for p in step.parameters if 'attachment_Test Attachment' in p['name']]
-        assert len(attachment_params) == 1
+
+        # Check that attachment was added to attachments section
+        assert hasattr(step, 'attachments') and step.attachments is not None
+        assert len(step.attachments) > 0
+
+        # Find the attachment
+        attachment = step.attachments[0]
+        assert attachment.name == "Test Attachment"
+        assert attachment.type == "text/plain"
+        assert attachment.source.endswith("-attachment.txt")
 
 
 def test_attach_json():
@@ -479,17 +478,19 @@ def test_attach_json():
         # Verify step was created and has parameters from attachment
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1
-        
+
         step = recorded_steps[0]
         assert step.name == "Test step"
-        
-        # Check that attachment was added as parameter
-        assert hasattr(step, 'parameters') and step.parameters is not None
-        assert len(step.parameters) > 0
-        
-        # Find attachment parameter
-        attachment_params = [p for p in step.parameters if 'attachment_Test JSON' in p['name']]
-        assert len(attachment_params) == 1
+
+        # Check that attachment was added to attachments section
+        assert hasattr(step, 'attachments') and step.attachments is not None
+        assert len(step.attachments) > 0
+
+        # Find the JSON attachment
+        attachment = step.attachments[0]
+        assert attachment.name == "Test JSON"
+        assert attachment.type == "application/json"
+        assert attachment.source.endswith("-attachment.json")
 
 
 def test_attach_file_exists(tmp_path):
@@ -510,17 +511,19 @@ def test_attach_file_exists(tmp_path):
         # Verify step was created and has file parameter
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1
-        
+
         step = recorded_steps[0]
         assert step.name == "Test step"
-        
-        # Check that file was added as parameter
-        assert hasattr(step, 'parameters') and step.parameters is not None
-        assert len(step.parameters) > 0
-        
-        # Find file parameter
-        file_params = [p for p in step.parameters if 'file_' in p['name']]
-        assert len(file_params) == 1
+
+        # Check that file was added to attachments section
+        assert hasattr(step, 'attachments') and step.attachments is not None
+        assert len(step.attachments) > 0
+
+        # Find the file attachment
+        attachment = step.attachments[0]
+        assert attachment.name == "test_file.txt"
+        assert attachment.type == "text/plain"
+        assert attachment.source.endswith("-attachment.txt")
 
 
 def test_attach_file_not_exists():
@@ -537,14 +540,14 @@ def test_attach_file_not_exists():
         # Verify step was created and has error parameter
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1
-        
+
         step = recorded_steps[0]
         assert step.name == "Test step"
-        
+
         # Check that error was added as parameter
         assert hasattr(step, 'parameters') and step.parameters is not None
         assert len(step.parameters) > 0
-        
+
         # Find error parameter
         error_params = [p for p in step.parameters if 'file_error' in p['name']]
         assert len(error_params) == 1
@@ -593,17 +596,19 @@ def test_attach_screenshot():
         # Verify step was created and has screenshot parameter
         recorded_steps = get_current_steps()
         assert len(recorded_steps) == 1
-        
+
         step = recorded_steps[0]
         assert step.name == "Test step"
-        
-        # Check that screenshot was added as parameter
-        assert hasattr(step, 'parameters') and step.parameters is not None
-        assert len(step.parameters) > 0
-        
-        # Find screenshot parameter
-        screenshot_params = [p for p in step.parameters if 'screenshot_' in p['name']]
-        assert len(screenshot_params) == 1
+
+        # Check that screenshot was added to attachments section
+        assert hasattr(step, 'attachments') and step.attachments is not None
+        assert len(step.attachments) > 0
+
+        # Find the screenshot attachment
+        attachment = step.attachments[0]
+        assert attachment.name == "Test Screenshot"
+        assert attachment.type == "image/png"
+        assert attachment.source.endswith("-attachment.png")
 
 
 def test_add_link():
