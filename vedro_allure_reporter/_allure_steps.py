@@ -114,7 +114,8 @@ class AllureStepContext:
         """Add an attachment to the currently active step."""
         current_step_obj = self.get_current_step_object()
         if current_step_obj:
-            if not hasattr(current_step_obj, 'attachments') or current_step_obj.attachments is None:
+            if (not hasattr(current_step_obj, 'attachments') or
+                    current_step_obj.attachments is None):
                 current_step_obj.attachments = []
             current_step_obj.attachments.append(attachment)
 
@@ -251,7 +252,7 @@ def attach_text(text: str, name: str = "Text Attachment",
                 attachment_type: str = "text/plain") -> None:
     """
     Attach text content to the current step.
-    
+
     Args:
         text: Text content to attach
         name: Name of the attachment (default: "Text Attachment")
@@ -261,6 +262,8 @@ def attach_text(text: str, name: str = "Text Attachment",
     if current_step_obj:
         attachment = create_text_attachment(text, name, attachment_type)
         add_attachment_to_step(current_step_obj, attachment)
+
+
 def attach_json(data: Any, name: str = "JSON Data") -> None:
     """
     Attach JSON data to the current step.
@@ -271,16 +274,18 @@ def attach_json(data: Any, name: str = "JSON Data") -> None:
     """
     try:
         json_text = json.dumps(data, indent=2, ensure_ascii=False)
-        attach_text(json_text, name=name, attachment_type="application/json")
+        attach_text(json_text, name=name,
+                    attachment_type="application/json")
     except (TypeError, ValueError):
         # Fallback to string representation
-        attach_text(str(data), name=f"{name} (fallback)", attachment_type="text/plain")
+        attach_text(str(data), name=f"{name} (fallback)",
+                    attachment_type="text/plain")
 
 
 def attach_file(file_path: Union[str, Path], name: Optional[str] = None) -> None:
     """
     Attach a file to the current step.
-    
+
     Args:
         file_path: Path to the file to attach
         name: Name of the attachment (defaults to filename)
@@ -288,18 +293,20 @@ def attach_file(file_path: Union[str, Path], name: Optional[str] = None) -> None
     current_step_obj = _step_context.get_current_step_object()
     if not current_step_obj:
         return
-        
+
     file_path = Path(file_path)
     if not file_path.exists():
         add_step_parameter("file_error", f"File not found: {file_path}")
         return
-    
+
     attachment = create_file_attachment(file_path, name)
     add_attachment_to_step(current_step_obj, attachment)
+
+
 def attach_screenshot(screenshot_data: bytes, name: str = "Screenshot") -> None:
     """
     Attach screenshot data to the current step.
-    
+
     Args:
         screenshot_data: Raw screenshot data (PNG/JPEG bytes)
         name: Name of the attachment (default: "Screenshot")
@@ -308,6 +315,8 @@ def attach_screenshot(screenshot_data: bytes, name: str = "Screenshot") -> None:
     if current_step_obj:
         attachment = create_screenshot_attachment(screenshot_data, name)
         add_attachment_to_step(current_step_obj, attachment)
+
+
 def add_link(url: str, name: Optional[str] = None) -> None:
     """
     Add a link to the current step.
@@ -450,8 +459,9 @@ class AllureStep:
                     if 'self' in clean_args:
                         del clean_args['self']
 
-                    formatted_title = _format_step_title(self.title, args[1:] if func_self else args,
-                                                       clean_args, func_self)
+                    formatted_title = _format_step_title(
+                        self.title, args[1:] if func_self else args,
+                        clean_args, func_self)
 
                     # Convert function parameters to Allure parameters format
                     function_parameters = []
@@ -495,8 +505,9 @@ class AllureStep:
                     if 'self' in clean_args:
                         del clean_args['self']
 
-                    formatted_title = _format_step_title(self.title, args[1:] if func_self else args,
-                                                       clean_args, func_self)
+                    formatted_title = _format_step_title(
+                        self.title, args[1:] if func_self else args,
+                        clean_args, func_self)
 
                     # Convert function parameters to Allure parameters format
                     function_parameters = []
@@ -594,11 +605,13 @@ class AllureStep:
             self._step_result.stop = now()
             if exc_type is not None:
                 self._step_result.status = "failed"
-                if not hasattr(self._step_result, 'statusDetails') or self._step_result.statusDetails is None:
+                if (not hasattr(self._step_result, 'statusDetails') or
+                        self._step_result.statusDetails is None):
                     self._step_result.statusDetails = {}
                 self._step_result.statusDetails.update({
                     "message": str(exc_val) if exc_val else str(exc_type.__name__),
-                    "trace": f"{exc_type.__name__}: {exc_val}" if exc_val else str(exc_type.__name__)
+                    "trace": (f"{exc_type.__name__}: {exc_val}" if exc_val else
+                              str(exc_type.__name__))
                 })
             else:
                 self._step_result.status = "passed"

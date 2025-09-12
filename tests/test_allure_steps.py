@@ -6,14 +6,14 @@ import pytest
 from baby_steps import given, then, when
 
 from vedro_allure_reporter._allure_steps import (
-    allure_step,
     AllureStepContext,
     _step_context,
-    get_current_steps,
+    add_step_parameter,
+    allure_step,
     clear_current_steps,
-    get_step_depth,
     get_current_step_uuid,
-    add_step_parameter
+    get_current_steps,
+    get_step_depth,
 )
 
 
@@ -306,7 +306,8 @@ def test_parameter_substitution_in_decorator():
             {'name': 'count', 'value': '5'},
             {'name': 'method', 'value': 'batch'}
         ]
-        mock_step_class.assert_called_once_with("Process 5 items with method batch", parameters=expected_params)
+        mock_step_class.assert_called_once_with(
+            "Process 5 items with method batch", parameters=expected_params)
         assert result == "Processed 5 items using batch"
 
 
@@ -336,7 +337,8 @@ def test_self_attribute_substitution():
 
     with then:
         # Check that AllureStep was created with self attributes substituted and empty parameters
-        mock_step_class.assert_called_once_with("Login user test_user with role admin", parameters=[])
+        mock_step_class.assert_called_once_with(
+            "Login user test_user with role admin", parameters=[])
         assert result == "Logged in test_user as admin"
 
 
@@ -348,7 +350,7 @@ def test_enhanced_context_with_parameters(mock_test_step_result):
         test_params = [{"name": "batch_size", "value": "100"}]
 
     with when:
-        with allure_step("Test step with params", parameters=test_params) as step_uuid:
+        with allure_step("Test step with params", parameters=test_params):
             # Verify that TestStepResult was created with correct parameters
             pass
 
