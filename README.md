@@ -70,6 +70,65 @@ $ allure serve ./allure_reports
 
 This command will serve up the report ([demo](https://allure-framework.github.io/allure-demo/5/)).
 
+### Allure Steps
+
+Create detailed step-by-step documentation for your tests using the `allure_step` functionality:
+
+#### Basic Step Usage
+
+```python
+from vedro_allure_reporter import allure_step
+
+# Using decorator
+@allure_step("Login with username {username}")
+def login(username: str, password: str):
+    # Your login logic here
+    pass
+
+# Using context manager
+def test_user_workflow():
+    with allure_step("Navigate to dashboard"):
+        # Navigation logic
+        pass
+    
+    with allure_step("Verify user data"):
+        # Verification logic  
+        pass
+```
+
+#### Attachments
+
+Add rich context to your test steps with attachments:
+
+```python
+from vedro_allure_reporter import attach_text, attach_json, attach_file
+
+with allure_step("API Response Validation"):
+    response_data = {"status": "success", "user_id": 123}
+    attach_json(response_data, name="API Response")
+    attach_text("Validation completed successfully", name="Validation Log")
+```
+
+#### Nested Steps
+
+Create hierarchical step structures for complex workflows:
+
+```python
+def complex_user_registration():
+    with allure_step("User Registration Flow"):
+        with allure_step("Input Validation"):
+            with allure_step("Email Format Check"):
+                # Email validation logic
+                pass
+            with allure_step("Password Strength Check"):
+                # Password validation logic
+                pass
+        
+        with allure_step("Account Creation"):
+            # Account creation logic
+            pass
+```
+
 ---
 
 Explore more at https://vedro.io/docs/integrations/allure-reporter

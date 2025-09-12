@@ -393,7 +393,96 @@ class AllureReporterPlugin(Reporter):
                 self._add_attachments(test_step_result, step_result.artifacts)
             test_result.steps.append(test_step_result)
 
+        # Add allure_step steps if any were recorded during scenario execution
+        try:
+            from ._allure_steps import get_current_steps, get_steps_by_vedro_step, clear_current_steps
+            recorded_steps = get_current_steps()
+            steps_by_vedro = get_steps_by_vedro_step()
+            
+            # Try to assign custom steps to corresponding Vedro steps by grouping
+            self._assign_custom_steps_to_vedro_steps_improved(test_result.steps, recorded_steps, steps_by_vedro)
+            
+            clear_current_steps()  # Clean up for next scenario
+        except ImportError:
+            # allure_steps module not available, skip integration
+            pass
+
         self._plugin_manager.hook.report_result(result=test_result)
+
+    def _assign_custom_steps_to_vedro_steps_improved(self, vedro_steps: List[TestStepResult], 
+                                                   custom_steps: List[TestStepResult],
+                                                   steps_by_vedro: Dict[str, List[TestStepResult]]) -> None:
+        """
+        Assign custom allure_step steps to corresponding Vedro steps using proper grouping.
+        
+        This method uses the steps_by_vedro_step grouping to correctly assign
+        custom steps to their corresponding Vedro steps based on execution context.
+        
+        :param vedro_steps: List of Vedro TestStepResult objects
+        :param custom_steps: List of custom TestStepResult objects from allure_step  
+        :param steps_by_vedro: Dictionary mapping Vedro step names to custom steps
+        """
+        if not custom_steps or not vedro_steps:
+            return
+            
+        # If we have proper grouping information, use it
+        if steps_by_vedro:
+            for vedro_step in vedro_steps:
+                vedro_step_name = vedro_step.name
+                if vedro_step_name in steps_by_vedro:
+                    if not hasattr(vedro_step, 'steps') or vedro_step.steps is None:
+                        vedro_step.steps = []
+                    vedro_step.steps.extend(steps_by_vedro[vedro_step_name])
+        else:
+            # Fallback to the old method if no grouping is available
+            self._assign_custom_steps_to_vedro_steps(vedro_steps, custom_steps)
+
+    def _assign_custom_steps_to_vedro_steps(self, vedro_steps: List[TestStepResult], 
+                                           custom_steps: List[TestStepResult]) -> None:
+        """
+        Assign custom allure_step steps to corresponding Vedro steps based on execution order.
+        
+        Since timing-based assignment is unreliable due to fast execution,
+        we'll try a different approach: assign custom steps to Vedro steps
+        based on their creation order during execution.
+        
+        :param vedro_steps: List of Vedro TestStepResult objects
+        :param custom_steps: List of custom TestStepResult objects from allure_step
+        """
+        if not custom_steps or not vedro_steps:
+            return
+        
+        # Simple heuristic: distribute custom steps roughly equally among Vedro steps
+        # This is not perfect but better than putting everything in the first step
+        steps_per_vedro = len(custom_steps) // len(vedro_steps)
+        remainder = len(custom_steps) % len(vedro_steps)
+        
+        custom_step_idx = 0
+        for i, vedro_step in enumerate(vedro_steps):
+            # Calculate how many custom steps to assign to this Vedro step
+            steps_for_this_vedro = steps_per_vedro
+            if i < remainder:  # Distribute remainder
+                steps_for_this_vedro += 1
+                
+            # Assign custom steps to this Vedro step
+            for _ in range(steps_for_this_vedro):
+                if custom_step_idx < len(custom_steps):
+                    custom_step = custom_steps[custom_step_idx]
+                    
+                    if not hasattr(vedro_step, 'steps') or vedro_step.steps is None:
+                        vedro_step.steps = []
+                    vedro_step.steps.append(custom_step)
+                    custom_step_idx += 1
+        
+        # If there are any remaining custom steps, add them to the last Vedro step
+        while custom_step_idx < len(custom_steps):
+            custom_step = custom_steps[custom_step_idx]
+            last_vedro_step = vedro_steps[-1]
+            
+            if not hasattr(last_vedro_step, 'steps') or last_vedro_step.steps is None:
+                last_vedro_step.steps = []
+            last_vedro_step.steps.append(custom_step)
+            custom_step_idx += 1
 
     def _create_status_details(self, exc_info: ExcInfo) -> StatusDetails:
         """
