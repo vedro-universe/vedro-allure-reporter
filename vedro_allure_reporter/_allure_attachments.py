@@ -8,7 +8,7 @@ that can be used by both AllureReporter and AllureSteps.
 import mimetypes
 from mimetypes import guess_extension
 from pathlib import Path
-from typing import Union
+from typing import Any, Optional, Union
 
 import allure_commons.utils as utils
 from allure_commons import plugin_manager
@@ -28,7 +28,9 @@ def create_attachment(name: str, mime_type: str, ext: str) -> AllureAttachment:
     Returns:
         An AllureAttachment object.
     """
-    file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
+    file_name = ATTACHMENT_PATTERN.format(
+        prefix=utils.uuid4(),  # type: ignore[no-untyped-call]
+        ext=ext)
     return AllureAttachment(name=name, source=file_name, type=mime_type)
 
 
@@ -69,8 +71,8 @@ def create_text_attachment(text: str, name: str,
     return create_memory_attachment(text.encode('utf-8'), name, mime_type)
 
 
-def create_file_attachment(file_path: Union[str, Path], name: str = None,
-                           mime_type: str = None) -> AllureAttachment:
+def create_file_attachment(file_path: Union[str, Path], name: Optional[str] = None,
+                           mime_type: Optional[str] = None) -> AllureAttachment:
     """
     Create an attachment from a file on disk.
 
@@ -128,7 +130,7 @@ def create_screenshot_attachment(screenshot_data: bytes,
     return create_memory_attachment(screenshot_data, name, mime_type)
 
 
-def add_attachment_to_step(step_result,
+def add_attachment_to_step(step_result: Any,
                            attachment: AllureAttachment) -> None:
     """
     Add an attachment to a step result.

@@ -8,9 +8,10 @@ in Allure reports when using the Vedro testing framework.
 import functools
 import inspect
 import json
+import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 from allure_commons.model2 import TestStepResult
 from allure_commons.utils import now, uuid4
@@ -50,104 +51,104 @@ class AllureStepContext:
     def __init__(self) -> None:
         self._local = threading.local()
 
+    def _ensure_initialized(self) -> None:
+        """Ensure thread-local storage is initialized."""
+        if not hasattr(self._local, 'initialized'):
+            self._local.step_stack = []
+            self._local.step_objects = []
+            self._local.recorded_steps = []
+            self._local.steps_by_vedro_step = {}
+            self._local.current_step = None
+            # Don't override current_vedro_step if it's already set
+            if not hasattr(self._local, 'current_vedro_step'):
+                self._local.current_vedro_step = None
+            self._local.initialized = True
+
     def get_current_step(self) -> Optional[str]:
         """Get the current step UUID for this thread."""
+        self._ensure_initialized()
         return getattr(self._local, 'current_step', None)
 
     def set_current_step(self, step_uuid: str) -> None:
         """Set the current step UUID for this thread."""
+        self._ensure_initialized()
         self._local.current_step = step_uuid
 
     def clear_current_step(self) -> None:
         """Clear the current step UUID for this thread."""
-        if hasattr(self._local, 'current_step'):
-            delattr(self._local, 'current_step')
+        self._ensure_initialized()
+        self._local.current_step = None
 
     def push_step(self, step_uuid: str, step_obj: TestStepResult) -> None:
         """Push a step UUID and object onto the step stack."""
-        if not hasattr(self._local, 'step_stack'):
-            self._local.step_stack = []
-            self._local.step_objects = []
+        self._ensure_initialized()
         self._local.step_stack.append(step_uuid)
         self._local.step_objects.append(step_obj)
-        self.set_current_step(step_uuid)
+        self._local.current_step = step_uuid
 
     def pop_step(self) -> Optional[TestStepResult]:
         """Pop a step from the step stack and return the step object."""
-        if not hasattr(self._local, 'step_stack') or not self._local.step_stack:
-            self.clear_current_step()
+        self._ensure_initialized()
+        if not self._local.step_stack:
+            self._local.current_step = None
             return None
 
         self._local.step_stack.pop()
-        popped_step = self._local.step_objects.pop()
+        popped_step: Optional[TestStepResult] = self._local.step_objects.pop()
 
         # Set current step to the parent step (if any)
-        if self._local.step_stack:
-            self.set_current_step(self._local.step_stack[-1])
-        else:
-            self.clear_current_step()
+        self._local.current_step = self._local.step_stack[-1] if self._local.step_stack else None
 
         return popped_step
 
     def get_step_depth(self) -> int:
         """Get the current nesting depth of steps."""
-        return len(getattr(self._local, 'step_stack', []))
+        self._ensure_initialized()
+        return len(self._local.step_stack)
 
     def get_current_step_object(self) -> Optional[TestStepResult]:
         """Get the current step object."""
+        self._ensure_initialized()
         step_objects = getattr(self._local, 'step_objects', [])
         return step_objects[-1] if step_objects else None
 
     def get_recorded_steps(self) -> List[TestStepResult]:
         """Get all recorded steps for this thread."""
+        self._ensure_initialized()
         return getattr(self._local, 'recorded_steps', [])
 
     def get_steps_by_vedro_step(self) -> Dict[str, List[TestStepResult]]:
         """Get recorded steps grouped by Vedro step name."""
+        self._ensure_initialized()
         return getattr(self._local, 'steps_by_vedro_step', {})
 
     def get_current_vedro_step(self) -> Optional[str]:
         """Get current vedro step name."""
+        self._ensure_initialized()
         return getattr(self._local, 'current_vedro_step', None)
-
-    def add_attachment_to_current_step(self, attachment: Any) -> None:
-        """Add an attachment to the currently active step."""
-        current_step_obj = self.get_current_step_object()
-        if current_step_obj:
-            if (not hasattr(current_step_obj, 'attachments') or
-                    current_step_obj.attachments is None):
-                current_step_obj.attachments = []
-            current_step_obj.attachments.append(attachment)
 
     def add_recorded_step(self, step: TestStepResult) -> None:
         """Add a step to the recorded steps for this thread."""
-        if not hasattr(self._local, 'recorded_steps'):
-            self._local.recorded_steps = []
-        if not hasattr(self._local, 'steps_by_vedro_step'):
-            self._local.steps_by_vedro_step = {}
+        self._ensure_initialized()
 
         self._local.recorded_steps.append(step)
 
         # Also group by current Vedro step
-        vedro_step = self.get_current_vedro_step()
-        if vedro_step:
-            if vedro_step not in self._local.steps_by_vedro_step:
-                self._local.steps_by_vedro_step[vedro_step] = []
-            self._local.steps_by_vedro_step[vedro_step].append(step)
+        if self._local.current_vedro_step:
+            vedro_steps = self._local.steps_by_vedro_step
+            if self._local.current_vedro_step not in vedro_steps:
+                vedro_steps[self._local.current_vedro_step] = []
+            vedro_steps[self._local.current_vedro_step].append(step)
 
     def clear_recorded_steps(self) -> None:
         """Clear all recorded steps for this thread."""
-        if hasattr(self._local, 'recorded_steps'):
-            self._local.recorded_steps = []
-        if hasattr(self._local, 'steps_by_vedro_step'):
-            self._local.steps_by_vedro_step = {}
-        if hasattr(self._local, 'step_stack'):
-            self._local.step_stack = []
-        if hasattr(self._local, 'step_objects'):
-            self._local.step_objects = []
-        if hasattr(self._local, 'current_vedro_step'):
-            delattr(self._local, 'current_vedro_step')
-        self.clear_current_step()
+        self._ensure_initialized()
+        self._local.recorded_steps.clear()
+        self._local.steps_by_vedro_step.clear()
+        self._local.step_stack.clear()
+        self._local.step_objects.clear()
+        self._local.current_vedro_step = None
+        self._local.current_step = None
 
 
 # Global thread-local step context
@@ -163,6 +164,7 @@ def set_current_vedro_step(step_name: str) -> None:
     Args:
         step_name: Name of the Vedro step that is starting
     """
+    _step_context._ensure_initialized()
     _step_context._local.current_vedro_step = step_name
 
 
@@ -172,8 +174,8 @@ def clear_current_vedro_step() -> None:
 
     This should be called by AllureReporter when a Vedro step finishes executing.
     """
-    if hasattr(_step_context._local, 'current_vedro_step'):
-        delattr(_step_context._local, 'current_vedro_step')
+    _step_context._ensure_initialized()
+    _step_context._local.current_vedro_step = None
 
 
 def get_current_steps() -> List[TestStepResult]:
@@ -299,7 +301,7 @@ def attach_file(file_path: Union[str, Path], name: Optional[str] = None) -> None
         add_step_parameter("file_error", f"File not found: {file_path}")
         return
 
-    attachment = create_file_attachment(file_path, name)
+    attachment = create_file_attachment(file_path, name or file_path.name)
     add_attachment_to_step(current_step_obj, attachment)
 
 
@@ -354,12 +356,13 @@ def create_step_parameter(name: str, value: Any, mode: str = "default") -> Dict[
     if mode == "masked":
         param["value"] = "***"
     elif mode == "hidden":
-        param["excluded"] = True
+        param["excluded"] = True  # type: ignore[assignment]
 
     return param
 
 
-def _format_step_title(title: str, func_args: tuple, func_kwargs: dict, func_self=None) -> str:
+def _format_step_title(title: str, func_args: Tuple[Any, ...],
+                       func_kwargs: Dict[str, Any], func_self: Any = None) -> str:
     """
     Format step title with function arguments and self attributes.
 
@@ -402,6 +405,151 @@ def _format_step_title(title: str, func_args: tuple, func_kwargs: dict, func_sel
         return title
 
 
+def _extract_function_parameters(
+        func: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dict[str, Any]
+) -> Tuple[Any, Dict[str, Any], List[Dict[str, str]]]:
+    """
+    Extract and format function parameters for Allure reporting.
+
+    Returns:
+        Tuple of (func_self, formatted_title_kwargs, function_parameters)
+    """
+    # Extract self if this is a method call
+    func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+
+    try:
+        sig = inspect.signature(func)
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        # Remove 'self' from arguments for cleaner parameter mapping
+        clean_args = dict(bound_args.arguments)
+        if 'self' in clean_args:
+            del clean_args['self']
+
+        # Convert function parameters to Allure parameters format
+        function_parameters = [
+            {"name": param_name, "value": str(param_value)}
+            for param_name, param_value in clean_args.items()
+        ]
+
+        return func_self, clean_args, function_parameters
+
+    except Exception:
+        # Fallback to basic parameter extraction
+        function_parameters = [
+            {"name": param_name, "value": str(param_value)}
+            for param_name, param_value in kwargs.items()
+        ]
+        return func_self, kwargs, function_parameters
+
+
+def _create_contextmanager_parameters(
+        func: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dict[str, Any]
+) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """
+    Create parameter mapping for context manager functions.
+
+    Returns:
+        Tuple of (format_kwargs, function_parameters)
+    """
+    format_kwargs = kwargs.copy()
+
+    # Try to get parameter names from original function
+    try:
+        original_func = func.__wrapped__ if hasattr(func, '__wrapped__') else func
+        sig = inspect.signature(original_func)
+        param_names = list(sig.parameters.keys())
+
+        # Map positional arguments to parameter names
+        for i, arg in enumerate(args):
+            if i < len(param_names):
+                format_kwargs[param_names[i]] = arg
+    except Exception:
+        # Fallback: use generic arg names
+        for i, arg in enumerate(args):
+            format_kwargs[f'arg{i}'] = arg
+
+    # Create function parameters for Allure
+    function_parameters = [
+        {"name": param_name, "value": str(param_value)}
+        for param_name, param_value in format_kwargs.items()
+    ]
+
+    return format_kwargs, function_parameters
+
+
+class _AllureStepContextManagerWrapper:
+    """
+    Reusable context manager wrapper for Allure steps.
+
+    Moved outside of __call__ method to avoid recreation on every function call.
+    """
+
+    def __init__(self, cm: Any, title: str, parameters: Optional[List[Dict[str, str]]]) -> None:
+        self.cm = cm
+        self.title = title
+        self.parameters = parameters
+        self.allure_step: Optional["AllureStep"] = None
+
+    def __enter__(self) -> Any:
+        # Start the Allure step first
+        self.allure_step = AllureStep(self.title, self.parameters)
+        self.allure_step.__enter__()
+
+        # Then enter the wrapped context manager
+        try:
+            result = self.cm.__enter__()
+            return result
+        except Exception:
+            # If cm.__enter__ fails, we need to clean up the AllureStep
+            if self.allure_step:
+                self.allure_step.__exit__(*sys.exc_info())
+            raise
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
+        # First exit the wrapped context manager
+        try:
+            cm_result = self.cm.__exit__(exc_type, exc_val, exc_tb)
+        except Exception:
+            # If cm.__exit__ raises an exception, we still need to exit AllureStep
+            if self.allure_step:
+                self.allure_step.__exit__(*sys.exc_info())
+            raise
+
+        # Then exit the Allure step
+        if self.allure_step:
+            self.allure_step.__exit__(exc_type, exc_val, exc_tb)
+
+        # Return the original context manager's exit result
+        return cm_result
+
+
+class _GeneratorContextManager:
+    """
+    Reusable context manager for generator objects.
+
+    Moved outside of __call__ method to avoid recreation.
+    """
+
+    def __init__(self, gen: Any) -> None:
+        self.gen = gen
+        self.value: Any = None
+
+    def __enter__(self) -> Any:
+        try:
+            self.value = next(self.gen)
+            return self.value
+        except StopIteration:
+            return None
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        try:
+            next(self.gen)
+        except StopIteration:
+            pass
+
+
 class AllureStep:
     """
     Universal Allure step that can be used both as decorator and context manager.
@@ -425,7 +573,7 @@ class AllureStep:
             pass
     """
 
-    def __init__(self, title: str, parameters: Optional[List[dict]] = None):
+    def __init__(self, title: str, parameters: Optional[List[Dict[str, Any]]] = None):
         """
         Initialize the AllureStep.
 
@@ -439,99 +587,131 @@ class AllureStep:
         self._step_uuid: Optional[str] = None
         self._step_result: Optional[TestStepResult] = None
 
-    def __call__(self, func: F) -> F:
-        """Use as decorator."""
-        if inspect.iscoroutinefunction(func):
-            # Handle async functions
-            @functools.wraps(func)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                # Extract self if this is a method call
-                func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+    def _is_contextmanager_function(self, func: Callable[..., Any]) -> bool:
+        """
+        Check if function is decorated with @contextlib.contextmanager.
+        Works regardless of decorator order. Optimized version.
+        """
+        # Method 1: Direct check for __wrapped__ (most reliable and fast)
+        if hasattr(func, '__wrapped__'):
+            return True
 
-                # Get function signature for better parameter mapping
-                try:
-                    sig = inspect.signature(func)
-                    bound_args = sig.bind(*args, **kwargs)
-                    bound_args.apply_defaults()
+        # Method 2: Check for generator function characteristics
+        # contextmanager decorator typically works with generator functions
+        if inspect.isgeneratorfunction(func):
+            return True
 
-                    # Remove 'self' from arguments for cleaner parameter mapping
-                    clean_args = dict(bound_args.arguments)
-                    if 'self' in clean_args:
-                        del clean_args['self']
+        # Method 3: Check wrapped function for generator characteristics
+        wrapped_func = getattr(func, '__wrapped__', None)
+        if wrapped_func and inspect.isgeneratorfunction(wrapped_func):
+            return True
 
-                    formatted_title = _format_step_title(
-                        self.title, args[1:] if func_self else args,
-                        clean_args, func_self)
+        return False
 
-                    # Convert function parameters to Allure parameters format
-                    function_parameters = []
-                    for param_name, param_value in clean_args.items():
-                        function_parameters.append({
-                            "name": param_name,
-                            "value": str(param_value)
-                        })
+    def _handle_contextmanager_function(self, func: F) -> F:
+        """Handle context manager function decoration."""
+        @functools.wraps(func)
+        def context_manager_wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Get parameter mapping and function parameters
+            format_kwargs, function_parameters = _create_contextmanager_parameters(
+                func, args, kwargs)
 
-                except Exception:
-                    # Fallback to basic formatting
-                    formatted_title = _format_step_title(self.title, args, kwargs, func_self)
-                    # Fallback parameters from kwargs
-                    function_parameters = []
-                    for param_name, param_value in kwargs.items():
-                        function_parameters.append({
-                            "name": param_name,
-                            "value": str(param_value)
-                        })
+            # Format title with parameters
+            try:
+                formatted_title = self.title.format(**format_kwargs)
+            except (KeyError, ValueError):
+                formatted_title = self.title
 
-                with AllureStep(formatted_title, parameters=function_parameters):
-                    return await func(*args, **kwargs)
+            # Get the actual context manager instance by calling the decorated function
+            cm_instance = func(*args, **kwargs)
 
-            return async_wrapper  # type: ignore
+            # Check what type of object we got back
+            if hasattr(cm_instance, '__enter__') and hasattr(cm_instance, '__exit__'):
+                # For @allure_step -> @contextlib.contextmanager order,
+                # cm_instance is already a proper context manager
+                return _AllureStepContextManagerWrapper(
+                    cm_instance, formatted_title, function_parameters)
 
-        else:
-            # Handle sync functions
-            @functools.wraps(func)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
-                # Extract self if this is a method call
-                func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+            elif hasattr(cm_instance, '__next__') and hasattr(cm_instance, '__iter__'):
+                # For @contextlib.contextmanager -> @allure_step order,
+                # func() returns a generator, not a context manager
+                cm_instance = _GeneratorContextManager(cm_instance)
 
-                # Get function signature for better parameter mapping
-                try:
-                    sig = inspect.signature(func)
-                    bound_args = sig.bind(*args, **kwargs)
-                    bound_args.apply_defaults()
+                # Need to return a generator that contextlib.contextmanager can work with
+                def allure_step_generator() -> Any:
+                    # Start the Allure step
+                    with AllureStep(formatted_title, function_parameters):
+                        # Use the original context manager
+                        with cm_instance as value:
+                            yield value
 
-                    # Remove 'self' from arguments for cleaner parameter mapping
-                    clean_args = dict(bound_args.arguments)
-                    if 'self' in clean_args:
-                        del clean_args['self']
-
-                    formatted_title = _format_step_title(
-                        self.title, args[1:] if func_self else args,
-                        clean_args, func_self)
-
-                    # Convert function parameters to Allure parameters format
-                    function_parameters = []
-                    for param_name, param_value in clean_args.items():
-                        function_parameters.append({
-                            "name": param_name,
-                            "value": str(param_value)
-                        })
-
-                except Exception:
-                    # Fallback to basic formatting
-                    formatted_title = _format_step_title(self.title, args, kwargs, func_self)
-                    # Fallback parameters from kwargs
-                    function_parameters = []
-                    for param_name, param_value in kwargs.items():
-                        function_parameters.append({
-                            "name": param_name,
-                            "value": str(param_value)
-                        })
-
-                with AllureStep(formatted_title, parameters=function_parameters):
+                return allure_step_generator()
+            else:
+                # Fall back to regular function decoration
+                with AllureStep(self.title, self.parameters):
                     return func(*args, **kwargs)
 
-            return wrapper  # type: ignore
+        return context_manager_wrapper  # type: ignore
+
+    def __call__(self, func: F) -> F:
+        """Use as decorator."""
+        # Check if this is a context manager function (works with any decorator order)
+        if self._is_contextmanager_function(func):
+            return self._handle_contextmanager_function(func)
+        # Check if this is a generator function (fallback for edge cases)
+        elif inspect.isgeneratorfunction(func):
+            return self._handle_generator_function(func)
+
+        elif inspect.iscoroutinefunction(func):
+            return self._handle_async_function(func)
+
+        else:
+            return self._handle_sync_function(func)
+
+    def _handle_generator_function(self, func: F) -> F:
+        """Handle generator function decoration."""
+        @functools.wraps(func)
+        def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Extract self if this is a method call
+            func_self = args[0] if args and hasattr(args[0], '__dict__') else None
+            formatted_title = _format_step_title(self.title, args, kwargs, func_self)
+
+            with AllureStep(formatted_title, self.parameters):
+                return func(*args, **kwargs)
+
+        return generator_wrapper  # type: ignore
+
+    def _handle_async_function(self, func: F) -> F:
+        """Handle async function decoration."""
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            func_self, clean_args, function_parameters = _extract_function_parameters(
+                func, args, kwargs)
+
+            formatted_title = _format_step_title(
+                self.title, args[1:] if func_self else args,
+                clean_args, func_self)
+
+            with AllureStep(formatted_title, parameters=function_parameters):
+                return await func(*args, **kwargs)
+
+        return async_wrapper  # type: ignore
+
+    def _handle_sync_function(self, func: F) -> F:
+        """Handle sync function decoration."""
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            func_self, clean_args, function_parameters = _extract_function_parameters(
+                func, args, kwargs)
+
+            formatted_title = _format_step_title(
+                self.title, args[1:] if func_self else args,
+                clean_args, func_self)
+
+            with AllureStep(formatted_title, parameters=function_parameters):
+                return func(*args, **kwargs)
+
+        return wrapper  # type: ignore
 
     def _determine_vedro_step_from_callstack(self) -> Optional[str]:
         """
@@ -567,11 +747,13 @@ class AllureStep:
 
     def __enter__(self) -> str:
         """Context manager entry."""
-        self._step_uuid = str(uuid4())
+        self._step_uuid = str(uuid4())  # type: ignore[no-untyped-call]
 
         # Create step result
-        self._step_result = TestStepResult(name=self.title, start=now())
-        self._step_result.uuid = self._step_uuid
+        self._step_result = TestStepResult(name=self.title,
+                                           start=now())  # type: ignore[no-untyped-call]
+        if hasattr(self._step_result, 'uuid'):
+            self._step_result.uuid = self._step_uuid
         if self.parameters:
             self._step_result.parameters = self.parameters
 
@@ -600,9 +782,9 @@ class AllureStep:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
-        if self._step_uuid and hasattr(self, '_step_result'):
+        if self._step_uuid and self._step_result is not None:
             # Complete step result with stop time and status
-            self._step_result.stop = now()
+            self._step_result.stop = now()  # type: ignore[no-untyped-call]
             if exc_type is not None:
                 self._step_result.status = "failed"
                 if (not hasattr(self._step_result, 'statusDetails') or
@@ -620,7 +802,7 @@ class AllureStep:
             _step_context.pop_step()
 
 
-def allure_step(title: str, parameters: Optional[List[dict]] = None) -> AllureStep:
+def allure_step(title: str, parameters: Optional[List[Dict[str, Any]]] = None) -> AllureStep:
     """
     Create an Allure step that can be used as both decorator and context manager.
 
