@@ -7,7 +7,7 @@ from vedro import Scenario
 __all__ = ("Epic", "Feature", "Story", "NamedLabel", "allure_labels")
 
 
-class NamedLabel(AllureLabel):  # type: ignore
+class NamedLabel(AllureLabel):
     """
     Represents a custom Allure label with a name and a value.
 

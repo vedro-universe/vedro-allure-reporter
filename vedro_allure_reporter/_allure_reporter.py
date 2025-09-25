@@ -192,7 +192,7 @@ class AllureReporterPlugin(Reporter):
             self._report_result(aggregated_result,
                                 self._get_scenario_result_status(aggregated_result))
 
-    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> Status:
+    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> str:
         """
         Retrieve the Allure status of a scenario result based on its status.
 
@@ -345,7 +345,7 @@ class AllureReporterPlugin(Reporter):
         unique_id = f"{self._project_name}_{scenario.unique_id}"
         return blake2b(unique_id.encode(), digest_size=32).hexdigest()
 
-    def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
+    def _report_result(self, scenario_result: ScenarioResult, status: str) -> None:
         """
         Report a scenario result to Allure, including steps, labels, and attachments.
 
@@ -353,7 +353,7 @@ class AllureReporterPlugin(Reporter):
         :param status: The status of the scenario (PASSED, FAILED, SKIPPED).
         """
         test_result = TestResult()
-        test_result.uuid = utils.uuid4()
+        test_result.uuid = utils.uuid4()  # type: ignore[no-untyped-call]
         test_result.name = scenario_result.scenario.subject
         test_result.fullName = scenario_result.scenario.unique_id
         test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
@@ -392,7 +392,7 @@ class AllureReporterPlugin(Reporter):
             steps_by_vedro = get_steps_by_vedro_step()
 
             # Try to assign custom steps to corresponding Vedro steps by grouping
-            self._assign_custom_steps_to_vedro_steps_improved(
+            self._assign_custom_steps_to_vedro_steps(
                 test_result.steps, recorded_steps, steps_by_vedro)
 
             clear_current_steps()  # Clean up for next scenario
@@ -402,18 +402,15 @@ class AllureReporterPlugin(Reporter):
 
         self._plugin_manager.hook.report_result(result=test_result)
 
-    def _assign_custom_steps_to_vedro_steps_improved(
+    def _assign_custom_steps_to_vedro_steps(
             self, vedro_steps: List[TestStepResult],
             custom_steps: List[TestStepResult],
             steps_by_vedro: Dict[str, List[TestStepResult]]) -> None:
         """
         Assign custom allure_step steps to corresponding Vedro steps.
 
-        This method uses proper grouping.
-
-        This method uses the steps_by_vedro_step grouping to correctly assign
-        custom steps to their corresponding Vedro steps based on execution
-        context.
+        This method uses proper grouping based on execution context to assign
+        custom steps to their corresponding Vedro steps.
 
         :param vedro_steps: List of Vedro TestStepResult objects
         :param custom_steps: List of custom TestStepResult objects from
@@ -434,64 +431,14 @@ class AllureReporterPlugin(Reporter):
                         vedro_step.steps = []
                     vedro_step.steps.extend(steps_by_vedro[vedro_step_name])
         else:
-            # Fallback to the old method if no grouping is available
-            self._assign_custom_steps_to_vedro_steps(vedro_steps,
-                                                     custom_steps)
-
-    def _assign_custom_steps_to_vedro_steps(
-            self, vedro_steps: List[TestStepResult],
-            custom_steps: List[TestStepResult]) -> None:
-        """
-        Assign custom allure_step steps to corresponding Vedro steps.
-
-        This is based on execution order.
-
-        Since timing-based assignment is unreliable due to fast execution,
-        we'll try a different approach: assign custom steps to Vedro steps
-        based on their creation order during execution.
-
-        :param vedro_steps: List of Vedro TestStepResult objects
-        :param custom_steps: List of custom TestStepResult objects from
-                             allure_step
-        """
-        if not custom_steps or not vedro_steps:
-            return
-
-        # Simple heuristic: distribute custom steps roughly equally among
-        # Vedro steps. This is not perfect but better than putting everything
-        # in the first step
-        steps_per_vedro = len(custom_steps) // len(vedro_steps)
-        remainder = len(custom_steps) % len(vedro_steps)
-
-        custom_step_idx = 0
-        for i, vedro_step in enumerate(vedro_steps):
-            # Calculate how many custom steps to assign to this Vedro step
-            steps_for_this_vedro = steps_per_vedro
-            if i < remainder:  # Distribute remainder
-                steps_for_this_vedro += 1
-
-            # Assign custom steps to this Vedro step
-            for _ in range(steps_for_this_vedro):
-                if custom_step_idx < len(custom_steps):
-                    custom_step = custom_steps[custom_step_idx]
-
-                    if (not hasattr(vedro_step, 'steps') or
-                            vedro_step.steps is None):
-                        vedro_step.steps = []
-                    vedro_step.steps.append(custom_step)
-                    custom_step_idx += 1
-
-        # If there are any remaining custom steps, add them to the last Vedro
-        # step
-        while custom_step_idx < len(custom_steps):
-            custom_step = custom_steps[custom_step_idx]
-            last_vedro_step = vedro_steps[-1]
-
-            if (not hasattr(last_vedro_step, 'steps') or
-                    last_vedro_step.steps is None):
-                last_vedro_step.steps = []
-            last_vedro_step.steps.append(custom_step)
-            custom_step_idx += 1
+            # If no proper grouping is available, just add all custom steps
+            # to the first Vedro step as a fallback
+            if vedro_steps and custom_steps:
+                first_vedro_step = vedro_steps[0]
+                if (not hasattr(first_vedro_step, 'steps') or
+                        first_vedro_step.steps is None):
+                    first_vedro_step.steps = []
+                first_vedro_step.steps.extend(custom_steps)
 
     def _create_status_details(self, exc_info: ExcInfo) -> StatusDetails:
         """
@@ -563,7 +510,8 @@ class AllureReporterPlugin(Reporter):
         :return: The TestStepResult object for the step.
         """
         test_step_result = TestStepResult()
-        test_step_result.uuid = utils.uuid4()
+        if hasattr(test_step_result, 'uuid'):
+            test_step_result.uuid = utils.uuid4()  # type: ignore[no-untyped-call]
         test_step_result.name = step_result.step_name.replace("_", " ")
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())

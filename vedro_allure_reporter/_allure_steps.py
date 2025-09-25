@@ -11,7 +11,7 @@ import json
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from allure_commons.model2 import TestStepResult
 from allure_commons.utils import now, uuid4
@@ -41,8 +41,6 @@ __all__ = [
     'add_link',
     'create_step_parameter'
 ]
-
-F = TypeVar('F', bound=Callable[..., Any])
 
 
 class AllureStepContext:
@@ -528,8 +526,6 @@ class _AllureStepContextManagerWrapper:
 class _GeneratorContextManager:
     """
     Reusable context manager for generator objects.
-
-    Moved outside of __call__ method to avoid recreation.
     """
 
     def __init__(self, gen: Any) -> None:
@@ -608,7 +604,7 @@ class AllureStep:
 
         return False
 
-    def _handle_contextmanager_function(self, func: F) -> F:
+    def _handle_contextmanager_function(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Handle context manager function decoration."""
         @functools.wraps(func)
         def context_manager_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -651,9 +647,9 @@ class AllureStep:
                 with AllureStep(self.title, self.parameters):
                     return func(*args, **kwargs)
 
-        return context_manager_wrapper  # type: ignore
+        return context_manager_wrapper
 
-    def __call__(self, func: F) -> F:
+    def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Use as decorator."""
         # Check if this is a context manager function (works with any decorator order)
         if self._is_contextmanager_function(func):
@@ -668,7 +664,7 @@ class AllureStep:
         else:
             return self._handle_sync_function(func)
 
-    def _handle_generator_function(self, func: F) -> F:
+    def _handle_generator_function(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Handle generator function decoration."""
         @functools.wraps(func)
         def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -679,9 +675,9 @@ class AllureStep:
             with AllureStep(formatted_title, self.parameters):
                 return func(*args, **kwargs)
 
-        return generator_wrapper  # type: ignore
+        return generator_wrapper
 
-    def _handle_async_function(self, func: F) -> F:
+    def _handle_async_function(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Handle async function decoration."""
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -695,9 +691,9 @@ class AllureStep:
             with AllureStep(formatted_title, parameters=function_parameters):
                 return await func(*args, **kwargs)
 
-        return async_wrapper  # type: ignore
+        return async_wrapper
 
-    def _handle_sync_function(self, func: F) -> F:
+    def _handle_sync_function(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Handle sync function decoration."""
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -711,7 +707,7 @@ class AllureStep:
             with AllureStep(formatted_title, parameters=function_parameters):
                 return func(*args, **kwargs)
 
-        return wrapper  # type: ignore
+        return wrapper
 
     def _determine_vedro_step_from_callstack(self) -> Optional[str]:
         """
