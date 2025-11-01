@@ -52,7 +52,11 @@ def dispatcher() -> Dispatcher:
 
 @pytest.fixture()
 def director(dispatcher: Dispatcher) -> DirectorPlugin:
-    director = DirectorPlugin(Director)
+    # Use a custom Director config with allure as default reporter
+    class DirectorWithAllureDefault(Director):
+        default_reporters = ["allure"]
+
+    director = DirectorPlugin(DirectorWithAllureDefault)
     director.subscribe(dispatcher)
     return director
 
