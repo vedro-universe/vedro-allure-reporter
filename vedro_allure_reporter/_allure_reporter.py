@@ -189,7 +189,7 @@ class AllureReporterPlugin(Reporter):
             self._report_result(aggregated_result,
                                 self._get_scenario_result_status(aggregated_result))
 
-    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> Status:
+    def _get_scenario_result_status(self, scenario_result: ScenarioResult) -> str:
         """
         Retrieve the Allure status of a scenario result based on its status.
 
@@ -277,7 +277,7 @@ class AllureReporterPlugin(Reporter):
         :param ext: The file extension of the attachment.
         :return: An AllureAttachment object.
         """
-        file_name = ATTACHMENT_PATTERN.format(prefix=utils.uuid4(), ext=ext)
+        file_name = ATTACHMENT_PATTERN.format(prefix=self._get_uuid4(), ext=ext)
         return AllureAttachment(name=name, source=file_name, type=mime_type)
 
     def _add_memory_attachment(self, artifact: MemoryArtifact) -> AllureAttachment:
@@ -357,7 +357,7 @@ class AllureReporterPlugin(Reporter):
         unique_id = f"{self._project_name}_{scenario.unique_id}"
         return blake2b(unique_id.encode(), digest_size=32).hexdigest()
 
-    def _report_result(self, scenario_result: ScenarioResult, status: Status) -> None:
+    def _report_result(self, scenario_result: ScenarioResult, status: str) -> None:
         """
         Report a scenario result to Allure, including steps, labels, and attachments.
 
@@ -365,7 +365,7 @@ class AllureReporterPlugin(Reporter):
         :param status: The status of the scenario (PASSED, FAILED, SKIPPED).
         """
         test_result = TestResult()
-        test_result.uuid = utils.uuid4()
+        test_result.uuid = self._get_uuid4()
         test_result.name = scenario_result.scenario.subject
         test_result.fullName = scenario_result.scenario.unique_id
         test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
@@ -465,7 +465,7 @@ class AllureReporterPlugin(Reporter):
         :return: The TestStepResult object for the step.
         """
         test_step_result = TestStepResult()
-        test_step_result.uuid = utils.uuid4()
+        test_step_result.id = test_step_result.uuid = self._get_uuid4()  # type: ignore
         test_step_result.name = step_result.step_name.replace("_", " ")
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())
@@ -474,6 +474,14 @@ class AllureReporterPlugin(Reporter):
         elif step_result.status == StepStatus.FAILED:
             test_step_result.status = Status.FAILED
         return test_step_result
+
+    def _get_uuid4(self) -> str:
+        """
+        Generate a UUID4 string.
+
+        :return: A UUID4 string.
+        """
+        return utils.uuid4()  # type: ignore
 
 
 class AllureReporter(PluginConfig):
