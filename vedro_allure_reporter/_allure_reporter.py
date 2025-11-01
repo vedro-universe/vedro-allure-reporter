@@ -465,7 +465,7 @@ class AllureReporterPlugin(Reporter):
         :return: The TestStepResult object for the step.
         """
         test_step_result = TestStepResult()
-        test_step_result.id = test_step_result.uuid = self._get_uuid4()  # type: ignore
+        test_step_result.uuid = self._get_uuid4()  # type: ignore
         test_step_result.name = step_result.step_name.replace("_", " ")
         test_step_result.start = self._to_seconds(step_result.started_at or time())
         test_step_result.stop = self._to_seconds(step_result.ended_at or time())
