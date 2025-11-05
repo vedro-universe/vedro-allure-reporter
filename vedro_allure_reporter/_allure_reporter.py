@@ -203,7 +203,7 @@ class AllureReporterPlugin(Reporter):
         :param event: The ScenarioRun event containing the scenario being executed.
         """
         scenario_result = event.scenario_result
-        test_uuid = utils.uuid4()  # type: ignore
+        test_uuid = self._get_uuid4()  # type: ignore
         self._current_test_uuid = test_uuid
         test_result = TestResult()
         test_result.uuid = test_uuid
@@ -223,7 +223,7 @@ class AllureReporterPlugin(Reporter):
         :param event: The StepRun event containing the step being executed.
         """
         step_result = event.step_result
-        step_uuid = utils.uuid4()  # type: ignore
+        step_uuid = self._get_uuid4()  # type: ignore
         self._step_uuids[step_result.step_name] = step_uuid
         step = TestStepResult()
         step.name = step_result.step_name.replace("_", " ")
