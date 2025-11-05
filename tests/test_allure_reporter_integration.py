@@ -20,6 +20,8 @@ from ._utils import (
     director,
     dispatcher,
     fire_arg_parsed_event,
+    fire_scenario_run_event,
+    fire_step_events,
     logger,
     make_aggregated_result,
     make_scenario_result,
@@ -57,9 +59,10 @@ async def test_scenario_reported(make_result: Callable[[], ScenarioResult], *,
 
         scenario_result = make_result().set_started_at(1.0).set_ended_at(3.0)
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
     with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -88,9 +91,10 @@ async def test_scenario_reported_rescheduled(make_result: Callable[[], ScenarioR
 
         scenario_result = make_result().set_started_at(1.0).set_ended_at(3.0)
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
     with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -116,17 +120,27 @@ async def test_scenarios_reported_rescheduled(*, dispatcher: Dispatcher,
         scenario_result2 = make_scenario_result().mark_passed() \
                                                  .set_started_at(4.0).set_ended_at(6.0)
 
-        aggregated_result = AggregatedResult.from_existing(scenario_result2,
-                                                           [scenario_result1, scenario_result2])
-        event = ScenarioReportedEvent(aggregated_result)
+        AggregatedResult.from_existing(scenario_result2, [scenario_result1, scenario_result2])
 
-    with when, patch_uuid() as uuid:
-        await dispatcher.fire(event)
+        uuid1, uuid2 = str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid1, uuid2):
+        # Fire scenario run and reported events for each result separately
+        # since report_rescheduled_scenarios=True creates separate test cases
+        await fire_scenario_run_event(dispatcher, scenario_result1)
+        event1 = ScenarioReportedEvent(AggregatedResult.from_existing(scenario_result1,
+                                                                      [scenario_result1]))
+        await dispatcher.fire(event1)
+
+        await fire_scenario_run_event(dispatcher, scenario_result2)
+        event2 = ScenarioReportedEvent(AggregatedResult.from_existing(scenario_result2,
+                                                                      [scenario_result2]))
+        await dispatcher.fire(event2)
 
     with then:
         assert logger.test_cases == [
-            make_test_case(uuid, scenario_result1),
-            make_test_case(uuid, scenario_result2),
+            make_test_case(uuid1, scenario_result1),
+            make_test_case(uuid2, scenario_result2),
         ]
         assert logger.test_containers == []
         assert logger.attachments == {}
@@ -149,9 +163,13 @@ async def test_scenario_passed_with_steps_event(*, dispatcher: Dispatcher,
         scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
 
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
-    with when, patch_uuid() as uuid:
+        uuid, step_uuid = str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, step_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result_passed])
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -186,9 +204,13 @@ async def test_scenario_failed_with_steps_event(*, dispatcher: Dispatcher,
         scenario_result = scenario_result.mark_failed().set_started_at(t).set_ended_at(t + 5)
 
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
-    with when, patch_uuid() as uuid:
+        uuid, step_uuid1, step_uuid2 = str(uuid4()), str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, step_uuid1, step_uuid2):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result_passed, step_result_failed])
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -217,9 +239,10 @@ async def test_scenario_config_labels(*, dispatcher: Dispatcher, director: Direc
         scenario_result = make_scenario_result().mark_passed() \
                                                 .set_started_at(0.1).set_ended_at(0.2)
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
     with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -240,9 +263,10 @@ async def test_scenario_tags(*, dispatcher: Dispatcher, director: DirectorPlugin
         scenario_result = make_scenario_result(tags=tags).mark_passed() \
                                                          .set_started_at(0.1).set_ended_at(0.2)
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
     with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -267,11 +291,12 @@ async def test_scenario_passed_attachments(*, dispatcher: Dispatcher,
         scenario_result.attach(artifact)
 
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
         uuid, attachment_uuid = str(uuid4()), str(uuid4())
 
     with when, patch_uuids(uuid, attachment_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -300,11 +325,12 @@ async def test_scenario_failed_attachments(*, tmp_path: Path, dispatcher: Dispat
         scenario_result.attach(artifact)
 
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
         uuid, attachment_uuid = str(uuid4()), str(uuid4())
 
     with when, patch_uuids(uuid, attachment_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:
@@ -329,9 +355,10 @@ async def test_scenario_labels(*, dispatcher: Dispatcher, director: DirectorPlug
                                                                       .set_ended_at(0.2)
 
         aggregated_result = make_aggregated_result(scenario_result)
-        event = ScenarioReportedEvent(aggregated_result)
 
     with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
         await dispatcher.fire(event)
 
     with then:

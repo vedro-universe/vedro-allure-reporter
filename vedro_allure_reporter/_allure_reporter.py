@@ -203,7 +203,7 @@ class AllureReporterPlugin(Reporter):
         :param event: The ScenarioRun event containing the scenario being executed.
         """
         scenario_result = event.scenario_result
-        test_uuid = self._get_uuid4()  # type: ignore
+        test_uuid = self._get_uuid4()
         self._current_test_uuid = test_uuid
         test_result = TestResult()
         test_result.uuid = test_uuid
@@ -223,11 +223,11 @@ class AllureReporterPlugin(Reporter):
         :param event: The StepRun event containing the step being executed.
         """
         step_result = event.step_result
-        step_uuid = self._get_uuid4()  # type: ignore
+        step_uuid = self._get_uuid4()
         self._step_uuids[step_result.step_name] = step_uuid
         step = TestStepResult()
         step.name = step_result.step_name.replace("_", " ")
-        step.start = self._to_seconds(time())
+        step.start = self._to_seconds(step_result.started_at or time())
         step.status = Status.PASSED
         self._allure_commons_reporter.start_step(None, step_uuid, step)  # type: ignore
 
@@ -265,9 +265,11 @@ class AllureReporterPlugin(Reporter):
         step_result = event.step_result
         step_uuid = self._step_uuids.get(step_result.step_name)
         if step_uuid:
+            status = Status.FAILED if isinstance(event, StepFailedEvent) else Status.PASSED
             self._allure_commons_reporter.stop_step(
                 step_uuid,
-                stop=self._to_seconds(time())  # type: ignore
+                stop=self._to_seconds(step_result.ended_at or time()),  # type: ignore
+                status=status
             )
             del self._step_uuids[step_result.step_name]
 
