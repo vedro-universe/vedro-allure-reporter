@@ -221,3 +221,29 @@ async def fire_arg_parsed_event(dispatcher: Dispatcher,
     args = make_parsed_args(allure_report_dir=report_dir, allure_labels=labels)
     event = ArgParsedEvent(args)
     await dispatcher.fire(event)
+
+
+async def fire_scenario_run_event(dispatcher: Dispatcher,
+                                  scenario_result: ScenarioResult) -> None:
+    from vedro.events import ScenarioRunEvent
+    event = ScenarioRunEvent(scenario_result)
+    await dispatcher.fire(event)
+
+
+async def fire_step_events(dispatcher: Dispatcher,
+                           step_results: List[StepResult]) -> None:
+    """Fire step run/passed/failed events for each step result."""
+    from vedro.events import StepFailedEvent, StepPassedEvent, StepRunEvent
+
+    for step_result in step_results:
+        # Fire run event
+        run_event = StepRunEvent(step_result)
+        await dispatcher.fire(run_event)
+
+        # Fire passed or failed event based on status
+        if step_result.is_passed():
+            passed_event = StepPassedEvent(step_result)
+            await dispatcher.fire(passed_event)
+        elif step_result.is_failed():
+            failed_event = StepFailedEvent(step_result)
+            await dispatcher.fire(failed_event)

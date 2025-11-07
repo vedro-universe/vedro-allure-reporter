@@ -16,6 +16,7 @@ from allure_commons.logger import AllureFileLogger
 from allure_commons.model2 import ATTACHMENT_PATTERN
 from allure_commons.model2 import Attachment as AllureAttachment
 from allure_commons.model2 import Label, Status, StatusDetails, TestResult, TestStepResult
+from allure_commons.reporter import AllureReporter as AllureCommonsReporter
 from allure_commons.types import LabelType
 from niltype import Nil
 from vedro.core import (
@@ -26,13 +27,21 @@ from vedro.core import (
     MemoryArtifact,
     PluginConfig,
     ScenarioResult,
-    StepResult,
-    StepStatus,
     VirtualScenario,
 )
-from vedro.events import ArgParsedEvent, ArgParseEvent, ScenarioReportedEvent, StartupEvent
+from vedro.events import (
+    ArgParsedEvent,
+    ArgParseEvent,
+    ScenarioReportedEvent,
+    ScenarioRunEvent,
+    StartupEvent,
+    StepFailedEvent,
+    StepPassedEvent,
+    StepRunEvent,
+)
 from vedro.plugins.director import DirectorInitEvent, Reporter
 
+from ._allure_steps import AllureStepHooks
 from .allure_rerunner import AllureRerunner, AllureRerunnerPlugin
 
 __all__ = ("AllureReporter", "AllureReporterPlugin",)
@@ -60,7 +69,6 @@ class AllureReporterPlugin(Reporter):
         self._plugin_manager = plugin_manager
         self._logger_factory = logger_factory
         self._logger: Union[AllureFileLogger, None] = None
-        self._test_result: Union[TestResult, None] = None
         self._project_name = config.project_name
         self._report_dir = config.report_dir
         self._attach_scope = config.attach_scope
@@ -70,6 +78,10 @@ class AllureReporterPlugin(Reporter):
         self._report_rescheduled_scenarios = config.report_rescheduled_scenarios
         self._allure_labels: Union[str, None] = None
         self._allure_rerunner = AllureRerunnerPlugin(AllureRerunner)
+        self._allure_commons_reporter = AllureCommonsReporter()  # type: ignore[no-untyped-call]
+        self._allure_step_hooks: Union[AllureStepHooks, None] = None
+        self._current_test_uuid: Union[str, None] = None
+        self._step_uuids: Dict[str, str] = {}
 
     async def on_startup(self, event: StartupEvent) -> None:
         """
@@ -113,8 +125,12 @@ class AllureReporterPlugin(Reporter):
         """
         assert isinstance(self._dispatcher, Dispatcher)
         self._dispatcher.listen(ArgParseEvent, self.on_chosen_arg_parse) \
-                        .listen(ArgParsedEvent, self.on_chosen_arg_parsed) \
-                        .listen(ScenarioReportedEvent, self.on_scenario_reported)
+            .listen(ArgParsedEvent, self.on_chosen_arg_parsed) \
+            .listen(ScenarioRunEvent, self.on_scenario_run) \
+            .listen(StepRunEvent, self.on_step_run) \
+            .listen(StepPassedEvent, self.on_step_passed) \
+            .listen(StepFailedEvent, self.on_step_failed) \
+            .listen(ScenarioReportedEvent, self.on_scenario_reported)
 
     def on_chosen_arg_parse(self, event: ArgParseEvent) -> None:
         """
@@ -155,7 +171,10 @@ class AllureReporterPlugin(Reporter):
         self._attach_scope = event.args.allure_attach_scope
         self._allure_labels = event.args.allure_labels
 
-        self._plugin_manager.register(self)
+        # Register AllureStepHooks for @allure.step decorator support
+        self._allure_step_hooks = AllureStepHooks(self._allure_commons_reporter)
+        self._plugin_manager.register(self._allure_step_hooks)
+
         self._logger = self._logger_factory(self._report_dir, clean=self._clean_report_dir)
         self._plugin_manager.register(self._logger)
 
@@ -173,6 +192,86 @@ class AllureReporterPlugin(Reporter):
         :param event: The ArgParsed event containing parsed arguments.
         """
         self._allure_labels = event.args.allure_labels
+
+    async def on_scenario_run(self, event: ScenarioRunEvent) -> None:
+        """
+        Handle the scenario run event and schedule a new test with Allure.
+
+        This method is called when a scenario starts running. It creates a new test
+        result with a unique UUID and schedules it with the Allure commons reporter.
+
+        :param event: The ScenarioRun event containing the scenario being executed.
+        """
+        scenario_result = event.scenario_result
+        test_uuid = self._get_uuid4()
+        self._current_test_uuid = test_uuid
+        test_result = TestResult()
+        test_result.uuid = test_uuid
+        test_result.name = scenario_result.scenario.subject
+        test_result.fullName = scenario_result.scenario.unique_id
+        test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
+        test_result.testCaseId = self._get_scenario_unique_id(scenario_result.scenario)
+        self._allure_commons_reporter.schedule_test(test_uuid, test_result)  # type: ignore
+
+    async def on_step_run(self, event: StepRunEvent) -> None:
+        """
+        Handle the step run event and start a new test step with Allure.
+
+        This method is called when a scenario step starts executing. It creates a new
+        test step with a unique UUID and starts it with the Allure commons reporter.
+
+        :param event: The StepRun event containing the step being executed.
+        """
+        step_result = event.step_result
+        step_uuid = self._get_uuid4()
+        self._step_uuids[step_result.step_name] = step_uuid
+        step = TestStepResult()
+        step.name = step_result.step_name.replace("_", " ")
+        step.start = self._to_seconds(step_result.started_at or time())
+        step.status = Status.PASSED
+        self._allure_commons_reporter.start_step(None, step_uuid, step)  # type: ignore
+
+    async def on_step_passed(self, event: StepPassedEvent) -> None:
+        """
+        Handle the step passed event and finalize the step with Allure.
+
+        This method is called when a scenario step passes successfully. It stops
+        the corresponding test step in the Allure report.
+
+        :param event: The StepPassed event containing the completed step.
+        """
+        await self._on_step_completed(event)
+
+    async def on_step_failed(self, event: StepFailedEvent) -> None:
+        """
+        Handle the step failed event and finalize the step with Allure.
+
+        This method is called when a scenario step fails. It stops the corresponding
+        test step in the Allure report.
+
+        :param event: The StepFailed event containing the failed step.
+        """
+        await self._on_step_completed(event)
+
+    async def _on_step_completed(self, event: Union[StepPassedEvent, StepFailedEvent]) -> None:
+        """
+        Common handler for step completion events.
+
+        This internal method handles both passed and failed step events. It retrieves
+        the step UUID and stops the step in the Allure report with the current timestamp.
+
+        :param event: The StepPassed or StepFailed event containing the completed step.
+        """
+        step_result = event.step_result
+        step_uuid = self._step_uuids.get(step_result.step_name)
+        if step_uuid:
+            status = Status.FAILED if isinstance(event, StepFailedEvent) else Status.PASSED
+            self._allure_commons_reporter.stop_step(
+                step_uuid,
+                stop=self._to_seconds(step_result.ended_at or time()),  # type: ignore
+                status=status
+            )
+            del self._step_uuids[step_result.step_name]
 
     def on_scenario_reported(self, event: ScenarioReportedEvent) -> None:
         """
@@ -364,36 +463,32 @@ class AllureReporterPlugin(Reporter):
         :param scenario_result: The ScenarioResult object containing scenario data.
         :param status: The status of the scenario (PASSED, FAILED, SKIPPED).
         """
-        test_result = TestResult()
-        test_result.uuid = self._get_uuid4()
-        test_result.name = scenario_result.scenario.subject
-        test_result.fullName = scenario_result.scenario.unique_id
-        test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
-        test_result.testCaseId = self._get_scenario_unique_id(scenario_result.scenario)
-        test_result.status = status
-        test_result.start = self._to_seconds(scenario_result.started_at or time())
-        test_result.stop = self._to_seconds(scenario_result.ended_at or time())
-
-        test_result.labels.extend(self._create_labels(scenario_result.scenario))
-
-        if self._attach_artifacts:
-            self._add_attachments(test_result, scenario_result.artifacts)
-
-        if self._attach_scope and (status != Status.SKIPPED):
-            body = self._format_scope(scenario_result.scope or {})
-            artifact = MemoryArtifact("Scope", "text/plain", body.encode())
-            attachment = self._add_memory_attachment(artifact)
-            test_result.attachments.append(attachment)
-
-        for step_result in scenario_result.step_results:
-            test_step_result = self._create_test_step_result(step_result)
-            if step_result.exc_info:
-                test_result.statusDetails = self._create_status_details(step_result.exc_info)
+        if not self._current_test_uuid:
+            return
+        # Update test result with final status and metadata
+        test_result = self._allure_commons_reporter.get_test(  # type: ignore
+            self._current_test_uuid
+        )
+        if test_result:
+            test_result.status = status
+            test_result.start = self._to_seconds(scenario_result.started_at or time())
+            test_result.stop = self._to_seconds(scenario_result.ended_at or time())
+            test_result.labels.extend(self._create_labels(scenario_result.scenario))
             if self._attach_artifacts:
-                self._add_attachments(test_step_result, step_result.artifacts)
-            test_result.steps.append(test_step_result)
-
-        self._plugin_manager.hook.report_result(result=test_result)
+                self._add_attachments(test_result, scenario_result.artifacts)
+            if self._attach_scope and (status != Status.SKIPPED):
+                body = self._format_scope(scenario_result.scope or {})
+                artifact = MemoryArtifact("Scope", "text/plain", body.encode())
+                attachment = self._add_memory_attachment(artifact)
+                test_result.attachments.append(attachment)
+            # Add status details for failures
+            for step_result in scenario_result.step_results:
+                if step_result.exc_info:
+                    test_result.statusDetails = self._create_status_details(step_result.exc_info)
+                    break
+        # Close test
+        self._allure_commons_reporter.close_test(self._current_test_uuid)  # type: ignore
+        self._current_test_uuid = None
 
     def _create_status_details(self, exc_info: ExcInfo) -> StatusDetails:
         """
@@ -456,24 +551,6 @@ class AllureReporterPlugin(Reporter):
             return traceback
         else:
             return TracebackFilter(modules=[vedro]).filter_tb(traceback)
-
-    def _create_test_step_result(self, step_result: StepResult) -> TestStepResult:
-        """
-        Create a TestStepResult for a given step, including status and timing.
-
-        :param step_result: The StepResult object containing step data.
-        :return: The TestStepResult object for the step.
-        """
-        test_step_result = TestStepResult()
-        test_step_result.uuid = self._get_uuid4()  # type: ignore
-        test_step_result.name = step_result.step_name.replace("_", " ")
-        test_step_result.start = self._to_seconds(step_result.started_at or time())
-        test_step_result.stop = self._to_seconds(step_result.ended_at or time())
-        if step_result.status == StepStatus.PASSED:
-            test_step_result.status = Status.PASSED
-        elif step_result.status == StepStatus.FAILED:
-            test_step_result.status = Status.FAILED
-        return test_step_result
 
     def _get_uuid4(self) -> str:
         """
