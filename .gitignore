@@ -154,3 +154,9 @@ cython_debug/
 
 # PyCharm
 .idea/
+
+# Vedro
+.vedro/
+
+# Allure reports
+allure_reports/
