@@ -259,12 +259,19 @@ class AllureReporterPlugin(Reporter):
 
         This internal method handles both passed and failed step events. It retrieves
         the step UUID and stops the step in the Allure report with the current timestamp.
+        Also attaches any artifacts that were added to the step.
 
         :param event: The StepPassed or StepFailed event containing the completed step.
         """
         step_result = event.step_result
         step_uuid = self._step_uuids.get(step_result.step_name)
         if step_uuid:
+            # Add step artifacts to Allure step before stopping it
+            if step_result.artifacts:
+                allure_step = self._allure_commons_reporter.get_item(step_uuid)  # type: ignore
+                if allure_step:
+                    self._add_attachments(allure_step, step_result.artifacts)
+
             status = Status.FAILED if isinstance(event, StepFailedEvent) else Status.PASSED
             self._allure_commons_reporter.stop_step(
                 step_uuid,
