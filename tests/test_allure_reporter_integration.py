@@ -481,3 +481,300 @@ async def test_labels_name_case_insensitive(*, dispatcher: Dispatcher,
 
     with then:
         assert list(scheduler.scheduled) == scenarios
+
+
+async def test_late_step_artifacts_memory_artifact(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test artifacts added to step_result after step completion."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        artifact = MemoryArtifact("log", "text/plain", b"<body>")
+        step_result.attach(artifact)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid, step_uuid, attachment_uuid = str(uuid4()), str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, step_uuid, attachment_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result])
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case["steps"]) == 1
+        step = test_case["steps"][0]
+        assert "attachments" in step
+        assert len(step["attachments"]) == 1
+        assert step["attachments"][0]["name"] == artifact.name
+        assert step["attachments"][0]["type"] == artifact.mime_type
+        assert list(logger.attachments.values()) == [artifact.data]
+
+
+async def test_late_step_artifacts_file_artifact(
+    *, tmp_path: Path, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test FileArtifact added to step_result after step completion."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        path = tmp_path / "screenshot.png"
+        path.write_bytes(b"<image>")
+        artifact = FileArtifact("screenshot", "image/png", path)
+        step_result.attach(artifact)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid, step_uuid, attachment_uuid = str(uuid4()), str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, step_uuid, attachment_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result])
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case["steps"]) == 1
+        step = test_case["steps"][0]
+        assert "attachments" in step
+        assert len(step["attachments"]) == 1
+        assert step["attachments"][0]["name"] == artifact.name
+        assert step["attachments"][0]["type"] == artifact.mime_type
+        assert list(logger.attachments.values()) == [artifact.path]
+
+
+async def test_late_step_artifacts_duplicate_prevention(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test duplicate artifacts (same name) are not added."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid, step_uuid, attachment_uuid1, attachment_uuid2 = (
+            str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
+        )
+
+    with when, patch_uuids(uuid, step_uuid, attachment_uuid1, attachment_uuid2):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result])
+
+        artifact1 = MemoryArtifact("log", "text/plain", b"<body1>")
+        step_result.attach(artifact1)
+
+        artifact2 = MemoryArtifact("log", "text/plain", b"<body2>")
+        step_result.attach(artifact2)
+
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case["steps"]) == 1
+        step = test_case["steps"][0]
+        assert "attachments" in step
+        assert len(step["attachments"]) == 1
+        assert step["attachments"][0]["name"] == artifact1.name
+
+
+async def test_late_step_artifacts_multiple_artifacts(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test multiple artifacts added after step completion."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        artifact1 = MemoryArtifact("log1", "text/plain", b"<body1>")
+        artifact2 = MemoryArtifact("log2", "text/plain", b"<body2>")
+        step_result.attach(artifact1)
+        step_result.attach(artifact2)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid, step_uuid, attachment_uuid1, attachment_uuid2 = (
+            str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4())
+        )
+
+    with when, patch_uuids(uuid, step_uuid, attachment_uuid1, attachment_uuid2):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result])
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case["steps"]) == 1
+        step = test_case["steps"][0]
+        assert "attachments" in step
+        assert len(step["attachments"]) == 2
+        attachment_names = {att["name"] for att in step["attachments"]}
+        assert attachment_names == {artifact1.name, artifact2.name}
+
+
+async def test_late_step_artifacts_rescheduled_scenarios(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test late step artifacts work with rescheduled scenarios."""
+    with given:
+        reporter._report_rescheduled_scenarios = True
+
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        artifact = MemoryArtifact("log", "text/plain", b"<body>")
+        step_result.attach(artifact)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid, step_uuid, attachment_uuid = str(uuid4()), str(uuid4()), str(uuid4())
+
+    with when, patch_uuids(uuid, step_uuid, attachment_uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        await fire_step_events(dispatcher, [step_result])
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case["steps"]) == 1
+        step = test_case["steps"][0]
+        assert "attachments" in step
+        assert len(step["attachments"]) == 1
+        assert step["attachments"][0]["name"] == artifact.name
+
+
+async def test_late_step_artifacts_no_current_test(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test late step artifacts not processed when no current test."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        # Ensure no current test UUID
+        reporter._current_test_uuid = None
+
+        scenario_result = make_scenario_result()
+        step_result = make_step_result().mark_passed()
+        scenario_result.add_step_result(step_result)
+
+        artifact = MemoryArtifact("log", "text/plain", b"<body>")
+        step_result.attach(artifact)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+    with when:
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 0
+
+
+async def test_late_step_artifacts_step_not_found(
+    *, dispatcher: Dispatcher,
+    director: DirectorPlugin,
+    reporter: AllureReporterPlugin,
+    logger: AllureMemoryLogger
+):
+    """Test artifacts not attached when Allure step not found."""
+    with given:
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        t = 1.0
+        scenario_result = make_scenario_result()
+        step_result = (make_step_result().mark_passed()
+                       .set_started_at(t + 1)
+                       .set_ended_at(t + 2))
+        scenario_result.add_step_result(step_result)
+        scenario_result = scenario_result.mark_passed().set_started_at(t).set_ended_at(t + 3)
+
+        artifact = MemoryArtifact("log", "text/plain", b"<body>")
+        step_result.attach(artifact)
+
+        aggregated_result = make_aggregated_result(scenario_result)
+
+        uuid = str(uuid4())
+
+    with when, patch_uuid(uuid):
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        assert len(logger.test_cases) == 1
+        test_case = logger.test_cases[0]
+        assert len(test_case.get("steps", [])) == 0
