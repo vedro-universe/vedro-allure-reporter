@@ -76,6 +76,7 @@ class AllureReporterPlugin(Reporter):
         self._config_labels = config.labels
         self._clean_report_dir = config.clean_report_dir
         self._report_rescheduled_scenarios = config.report_rescheduled_scenarios
+        self._report_skipped_scenarios = config.report_skipped_scenarios
         self._allure_labels: Union[str, None] = None
         self._allure_rerunner = AllureRerunnerPlugin(AllureRerunner)
         self._allure_commons_reporter = AllureCommonsReporter()  # type: ignore[no-untyped-call]
@@ -472,7 +473,10 @@ class AllureReporterPlugin(Reporter):
         :param scenario_result: The ScenarioResult object containing scenario data.
         :param status: The status of the scenario (PASSED, FAILED, SKIPPED).
         """
+        # Handle skipped scenarios that were never run
         if not self._current_test_uuid:
+            if status == Status.SKIPPED and self._report_skipped_scenarios:
+                self._report_skipped_scenario(scenario_result, status)
             return
         # Update test result with final status and metadata
         test_result = self._allure_commons_reporter.get_test(  # type: ignore
@@ -498,6 +502,38 @@ class AllureReporterPlugin(Reporter):
         # Close test
         self._allure_commons_reporter.close_test(self._current_test_uuid)  # type: ignore
         self._current_test_uuid = None
+
+    def _report_skipped_scenario(self, scenario_result: ScenarioResult, status: str) -> None:
+        """
+        Report a skipped scenario that was never run (e.g., @vedro.skip()).
+
+        This method creates a minimal test result for scenarios that were skipped before
+        execution. It includes the scenario name, labels, and skip reason if available.
+
+        :param scenario_result: The ScenarioResult object containing scenario data.
+        :param status: The status of the scenario (should be SKIPPED).
+        """
+        test_uuid = self._get_uuid4()
+        test_result = TestResult()
+        test_result.uuid = test_uuid
+        test_result.name = scenario_result.scenario.subject
+        test_result.fullName = scenario_result.scenario.unique_id
+        test_result.historyId = self._get_scenario_unique_id(scenario_result.scenario)
+        test_result.testCaseId = self._get_scenario_unique_id(scenario_result.scenario)
+        test_result.status = status
+        test_result.start = self._to_seconds(scenario_result.started_at or time())
+        test_result.stop = self._to_seconds(scenario_result.ended_at or time())
+        test_result.labels.extend(self._create_labels(scenario_result.scenario))
+
+        # Add skip reason as status details if available
+        for step_result in scenario_result.step_results:
+            if step_result.exc_info:
+                test_result.statusDetails = self._create_status_details(step_result.exc_info)
+                break
+
+        # Schedule and close the test immediately
+        self._allure_commons_reporter.schedule_test(test_uuid, test_result)  # type: ignore
+        self._allure_commons_reporter.close_test(test_uuid)  # type: ignore
 
     def _create_status_details(self, exc_info: ExcInfo) -> StatusDetails:
         """
@@ -677,3 +713,7 @@ class AllureReporter(PluginConfig):
     # represented, providing visibility into the scenario's intermediate attempts.
     # If False, only the aggregated final result is reported.
     report_rescheduled_scenarios: bool = False
+
+    # If True, includes scenarios that were skipped before execution (e.g., via @vedro.skip())
+    # in the Allure report with SKIPPED status. If False, skipped scenarios are not reported.
+    report_skipped_scenarios: bool = True
