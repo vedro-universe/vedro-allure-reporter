@@ -525,12 +525,6 @@ class AllureReporterPlugin(Reporter):
         test_result.stop = self._to_seconds(scenario_result.ended_at or time())
         test_result.labels.extend(self._create_labels(scenario_result.scenario))
 
-        # Add skip reason as status details if available
-        for step_result in scenario_result.step_results:
-            if step_result.exc_info:
-                test_result.statusDetails = self._create_status_details(step_result.exc_info)
-                break
-
         # Schedule and close the test immediately
         self._allure_commons_reporter.schedule_test(test_uuid, test_result)  # type: ignore
         self._allure_commons_reporter.close_test(test_uuid)  # type: ignore
