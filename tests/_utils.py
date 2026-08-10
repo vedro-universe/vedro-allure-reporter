@@ -12,7 +12,7 @@ from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
-from allure_commons.model2 import ATTACHMENT_PATTERN, Attachment
+from allure_commons.model2 import ATTACHMENT_PATTERN, Attachment, Label
 from vedro import Config, Scenario
 from vedro.core import (
     AggregatedResult,
@@ -96,7 +96,8 @@ def make_vscenario(*,
                    path: Optional[Path] = None,
                    subject: Optional[str] = None,
                    tags: Optional[List[str]] = None,
-                   labels: Optional[Tuple[AllureLabel]] = None) -> VirtualScenario:
+                   labels: Optional[Tuple[AllureLabel]] = None,
+                   dynamic_labels: Optional[Tuple[Label]] = None) -> VirtualScenario:
     namespace = {}
     if path is not None:
         namespace["__file__"] = str(path)
@@ -108,6 +109,8 @@ def make_vscenario(*,
         namespace["tags"] = tags
     if labels is not None:
         namespace['__vedro__allure_labels__'] = labels
+    if dynamic_labels is not None:
+        namespace['__vedro__allure_dynamic_labels__'] = dynamic_labels
     scenario = type("Scenario", (Scenario,), namespace)
     return VirtualScenario(scenario, [])
 
@@ -115,12 +118,14 @@ def make_vscenario(*,
 def make_scenario_result(path: Optional[Path] = None,
                          subject: Optional[str] = None,
                          tags: Optional[List[str]] = None,
-                         labels: Optional[Tuple[AllureLabel]] = None) -> ScenarioResult:
+                         labels: Optional[Tuple[AllureLabel]] = None,
+                         dynamic_labels: Optional[Tuple[Label]] = None) -> ScenarioResult:
     if path is None:
         path = make_path("namespace")
     if subject is None:
         subject = make_random_name()
-    vscenario = make_vscenario(path=path, subject=subject, tags=tags, labels=labels)
+    vscenario = make_vscenario(path=path, subject=subject, tags=tags,
+                               labels=labels, dynamic_labels=dynamic_labels)
     return ScenarioResult(vscenario)
 
 
