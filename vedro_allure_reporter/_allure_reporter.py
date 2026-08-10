@@ -54,6 +54,11 @@ class AllureLabelHooks:
 
     @hookimpl
     def decorate_as_label(self, label_type, labels):
+        test = self._reporter.get_test(None)
+        if test:
+            for label_value in labels:
+                test.labels.append(Label(label_type, label_value))
+
         def decorator(func):
             existing = getattr(func, '__vedro__allure_dynamic_labels__', ())
             new = tuple(Label(label_type, label) for label in labels)

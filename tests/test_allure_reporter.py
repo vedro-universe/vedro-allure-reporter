@@ -150,3 +150,21 @@ def test_add_label_multiple():
         assert test_result.labels[0].value == "111"
         assert test_result.labels[1].name == LabelType.ID
         assert test_result.labels[1].value == "222"
+
+
+def test_decorate_as_label_runtime():
+    with given:
+        reporter_mock = Mock(spec=AllureCommonsReporter)
+        test_result = TestResult(uuid="test-uuid", name="Test")
+        reporter_mock.get_test = Mock(return_value=test_result)
+        hooks = AllureLabelHooks(reporter_mock)
+
+    with when:
+        decorator = hooks.decorate_as_label(LabelType.ID, ("99999",))
+
+    with then:
+        assert callable(decorator)
+        assert len(test_result.labels) == 1
+        assert test_result.labels[0].name == LabelType.ID
+        assert test_result.labels[0].value == "99999"
+        reporter_mock.get_test.assert_called_once_with(None)
