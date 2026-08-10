@@ -12,6 +12,7 @@ import allure_commons.utils as utils
 import vedro
 from allure_commons import plugin_manager
 from allure_commons._core import MetaPluginManager
+from allure_commons._hooks import hookimpl
 from allure_commons.logger import AllureFileLogger
 from allure_commons.model2 import ATTACHMENT_PATTERN
 from allure_commons.model2 import Attachment as AllureAttachment
@@ -44,7 +45,33 @@ from vedro.plugins.director import DirectorInitEvent, Reporter
 from ._allure_steps import AllureStepHooks
 from .allure_rerunner import AllureRerunner, AllureRerunnerPlugin
 
-__all__ = ("AllureReporter", "AllureReporterPlugin",)
+__all__ = ("AllureLabelHooks", "AllureReporter", "AllureReporterPlugin",)
+
+
+class AllureLabelHooks:
+    def __init__(self, reporter: AllureCommonsReporter):
+        self._reporter = reporter
+
+    @hookimpl
+    def decorate_as_label(self, label_type, labels):
+        test = self._reporter.get_test(None)
+        if test:
+            for label_value in labels:
+                test.labels.append(Label(label_type, label_value))
+
+        def decorator(func):
+            existing = getattr(func, '__vedro__allure_dynamic_labels__', ())
+            new = tuple(Label(label_type, label) for label in labels)
+            setattr(func, '__vedro__allure_dynamic_labels__', existing + new)
+            return func
+        return decorator
+
+    @hookimpl
+    def add_label(self, label_type, labels):
+        test = self._reporter.get_test(None)
+        if test:
+            for label in labels:
+                test.labels.append(Label(label_type, label))
 
 
 class AllureReporterPlugin(Reporter):
@@ -81,6 +108,8 @@ class AllureReporterPlugin(Reporter):
         self._allure_rerunner = AllureRerunnerPlugin(AllureRerunner)
         self._allure_commons_reporter = AllureCommonsReporter()  # type: ignore[no-untyped-call]
         self._allure_step_hooks: Union[AllureStepHooks, None] = None
+        self._label_hooks = AllureLabelHooks(self._allure_commons_reporter)
+        self._plugin_manager.register(self._label_hooks)
         self._current_test_uuid: Union[str, None] = None
         self._step_uuids: Dict[str, str] = {}
 
@@ -374,6 +403,7 @@ class AllureReporterPlugin(Reporter):
 
         labels = getattr(template, "__vedro__allure_labels__", ())
         labels += getattr(scenario._orig_scenario, "__vedro__allure_labels__", ())
+        labels += getattr(scenario._orig_scenario, "__vedro__allure_dynamic_labels__", ())
 
         return labels
 
