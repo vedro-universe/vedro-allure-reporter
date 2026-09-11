@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 from allure_commons.logger import AllureMemoryLogger
+from allure_commons.model2 import Label
+from allure_commons.types import LabelType
 from baby_steps import given, then, when
 from vedro.core import AggregatedResult, Dispatcher, FileArtifact, MemoryArtifact
 from vedro.core import MonotonicScenarioScheduler as Scheduler
@@ -778,3 +780,32 @@ async def test_late_step_artifacts_step_not_found(
         assert len(logger.test_cases) == 1
         test_case = logger.test_cases[0]
         assert len(test_case.get("steps", [])) == 0
+
+
+async def test_as_id_label(*, dispatcher: Dispatcher, director: DirectorPlugin,
+                           logger: AllureMemoryLogger):
+    with given:
+        reporter = AllureReporterPlugin(vedro_allure_reporter.AllureReporter,
+                                        logger_factory=lambda *args, **kwargs: logger)
+        reporter.subscribe(dispatcher)
+        await choose_reporter(dispatcher, director, reporter)
+        await fire_arg_parsed_event(dispatcher)
+
+        as_id = "12345"
+        dynamic_labels = (Label(LabelType.ID, as_id),)
+        scenario_result = make_scenario_result(dynamic_labels=dynamic_labels).mark_passed() \
+            .set_started_at(1.0).set_ended_at(3.0)
+        aggregated_result = make_aggregated_result(scenario_result)
+
+    with when, patch_uuid() as uuid:
+        await fire_scenario_run_event(dispatcher, scenario_result)
+        event = ScenarioReportedEvent(aggregated_result)
+        await dispatcher.fire(event)
+
+    with then:
+        expected_labels = [AllureLabel(LabelType.ID, as_id)]
+        assert logger.test_cases == [
+            make_test_case(uuid, scenario_result, labels=expected_labels)
+        ]
+        assert logger.test_containers == []
+        assert logger.attachments == {}

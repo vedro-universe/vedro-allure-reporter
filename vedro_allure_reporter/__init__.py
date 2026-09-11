@@ -2,8 +2,8 @@ from allure_commons._allure import step as allure_step
 from allure_commons.model2 import Label as AllureLabel
 
 from ._allure_labels import Epic, Feature, Story, allure_labels
-from ._allure_reporter import AllureReporter, AllureReporterPlugin
+from ._allure_reporter import AllureLabelHooks, AllureReporter, AllureReporterPlugin
 
 __version__ = "1.13.0"
-__all__ = ("AllureReporter", "AllureReporterPlugin", "AllureLabel",
+__all__ = ("AllureReporter", "AllureReporterPlugin", "AllureLabelHooks", "AllureLabel",
            "Epic", "Story", "Feature", "allure_labels", "allure_step")
