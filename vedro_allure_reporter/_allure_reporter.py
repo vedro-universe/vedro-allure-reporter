@@ -6,7 +6,7 @@ from pathlib import Path
 from time import time
 from traceback import format_exception
 from types import TracebackType
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 import allure_commons.utils as utils
 import vedro
@@ -49,17 +49,18 @@ __all__ = ("AllureLabelHooks", "AllureReporter", "AllureReporterPlugin",)
 
 
 class AllureLabelHooks:
-    def __init__(self, reporter: AllureCommonsReporter):
+    def __init__(self, reporter: AllureCommonsReporter) -> None:
         self._reporter = reporter
 
     @hookimpl
-    def decorate_as_label(self, label_type, labels):
-        test = self._reporter.get_test(None)
+    def decorate_as_label(self, label_type: str,
+                          labels: Tuple[str, ...]) -> Callable[[Any], Any]:
+        test = self._reporter.get_test(None)  # type: ignore[no-untyped-call]
         if test:
             for label_value in labels:
                 test.labels.append(Label(label_type, label_value))
 
-        def decorator(func):
+        def decorator(func: Any) -> Any:
             existing = getattr(func, '__vedro__allure_dynamic_labels__', ())
             new = tuple(Label(label_type, label) for label in labels)
             setattr(func, '__vedro__allure_dynamic_labels__', existing + new)
@@ -67,8 +68,8 @@ class AllureLabelHooks:
         return decorator
 
     @hookimpl
-    def add_label(self, label_type, labels):
-        test = self._reporter.get_test(None)
+    def add_label(self, label_type: str, labels: Tuple[str, ...]) -> None:
+        test = self._reporter.get_test(None)  # type: ignore[no-untyped-call]
         if test:
             for label in labels:
                 test.labels.append(Label(label_type, label))
