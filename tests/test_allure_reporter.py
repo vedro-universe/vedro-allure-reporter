@@ -2,7 +2,7 @@ from typing import Any
 from unittest.mock import Mock, call
 
 import pytest
-from allure_commons.model2 import Label, TestResult
+from allure_commons.model2 import TestResult
 from allure_commons.reporter import AllureReporter as AllureCommonsReporter
 from allure_commons.types import LabelType
 from baby_steps import given, then, when
